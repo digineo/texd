@@ -62,7 +62,7 @@ func main() {
 		log.Fatalf("error parsing --tex-engine: %v", err)
 	}
 
-	stop := cmd.StartWeb(addr)
+	stop := cmd.StartWeb(addr, queueLen)
 	onExit(stop)
 }
 
