@@ -29,6 +29,7 @@ var (
 	concurrency = runtime.GOMAXPROCS(0)
 	queueLen    = 1000
 	mode        = modeLocal
+	jobdir      = ""
 	images      []string
 )
 
@@ -43,10 +44,16 @@ func main() {
 		"maximum `number` of parallel rendereing jobs")
 	flag.IntVarP(&queueLen, "queue-length", "q", queueLen,
 		"maximum `length` of queue")
+	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
+		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
 	flag.Parse()
 
 	if images = flag.Args(); len(images) > 0 {
 		mode = modeContainer
+	}
+
+	if err := tex.SetJobBaseDir(jobdir); err != nil {
+		log.Fatalf("error parsing --job-directory: %v", err)
 	}
 
 	if x, err := tex.ParseTeXEngine(engine); err == nil {

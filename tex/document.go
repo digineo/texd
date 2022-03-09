@@ -9,6 +9,9 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Mark is used to help identifying the main input file from a list
+// of potential candidates. This is a last resort measurement, clients
+// should specify main files explicitly.
 const Mark = "%!texd"
 
 // can be overriden in tests
@@ -78,7 +81,7 @@ func (doc *document) WorkingDirectory() (string, error) {
 }
 
 func (doc *document) createWorkDir() {
-	if wd, err := afero.TempDir(doc.fs, "", "texd-"); err != nil {
+	if wd, err := afero.TempDir(doc.fs, baseJobDir, "texd-"); err != nil {
 		doc.mkWorkDirErr = UnknownError("creating working directory failed", err, nil)
 	} else {
 		doc.workdir = wd

@@ -142,6 +142,10 @@ $ docker run --rm -t dmke/texd:latest -h
 
   Maximum number of jobs to be enqueued before the HTTP API returns with an error.
 
+- `--job-directory=PATH`, `-D PATH` (Default: OS temp directory)
+
+  Place to put job sub-directories in. The path must exist and it must be writable.
+
 > Note: This option listing might be outdated. Run `texd --help` to get the up-to-date listing.
 
 ## HTTP API

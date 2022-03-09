@@ -1,6 +1,19 @@
+GOFLAGS = -trimpath -ldflags="-s -w"
+
+build: texd
+
+.PHONY: texd
+texd:
+	go build -o $@ $(GOFLAGS) ./cmd/texd
+
 .PHONY: run
 run:
-	cd cmd/texd && go run main.go
+	mkdir -p ./tmp
+	go run $(GOFLAGS) ./cmd/texd -D ./tmp
+
+.PHONY: test
+test:
+	go test -race ./...
 
 .PHONY: test-simple
 test-simple:
