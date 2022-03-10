@@ -25,7 +25,7 @@ test-multi:
 	curl http://localhost:2201/render \
 		-F "input.tex=<testdata/multi/input.tex" \
 		-F "doc.tex=<testdata/multi/doc.tex" \
-		-F "chapter/input.tex=<testdata/multi/input.tex"
+		-F "chapter/input.tex=<testdata/multi/chapter/input.tex"
 
 .PHONY: texlive-2020-image
 texlive-2020-image:
