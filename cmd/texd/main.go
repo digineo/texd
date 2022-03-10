@@ -32,6 +32,7 @@ var (
 	executor    = exec.NewLocalExec
 	jobdir      = ""
 	images      []string
+	pull        = false
 )
 
 func main() {
@@ -49,11 +50,8 @@ func main() {
 		"maximum `length` of queue")
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
+	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
 	flag.Parse()
-
-	if images = flag.Args(); len(images) > 0 {
-		executor = exec.NewDockerExec
-	}
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
 		log.Fatalf("error parsing --job-directory: %v", err)
@@ -63,6 +61,16 @@ func main() {
 		tex.DefaultEngine = x
 	} else {
 		log.Fatalf("error parsing --tex-engine: %v", err)
+	}
+
+	if images = flag.Args(); len(images) > 0 {
+		cli, err := exec.NewDockerClient()
+		if err != nil {
+			log.Fatalf("error connecting to dockerd: %v", err)
+		}
+
+		cli.SetImages(context.Background(), pull, images...)
+		executor = cli.Executor
 	}
 
 	stop := cmd.StartWeb(addr, queueLen, executor)

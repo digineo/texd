@@ -35,6 +35,5 @@ func (x *localExec) Run(ctx context.Context) error {
 			"stderr": stderr.String(),
 		})
 	}
-
 	return nil
 }
