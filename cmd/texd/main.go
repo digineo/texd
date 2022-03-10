@@ -24,7 +24,7 @@ const (
 
 var (
 	addr        = ":2201"
-	engine      = tex.XeLaTeX.String()
+	engine      = tex.DefaultEngine.Name
 	timeout     = time.Minute
 	concurrency = runtime.GOMAXPROCS(0)
 	queueLen    = 1000

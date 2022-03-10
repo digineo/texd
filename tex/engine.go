@@ -2,47 +2,39 @@ package tex
 
 import "fmt"
 
-type Engine string
+type Engine struct {
+	Name  string
+	Flags []string
+}
 
-const (
-	PDFLaTeX = Engine("pdflatex")
-	XeLaTeX  = Engine("xelatex")
-	LuaLaTeX = Engine("lualatex")
-)
+var engines = []Engine{
+	{"xelatex", []string{"-pdflua"}},
+	{"pdflatex", []string{"-pdfxe"}},
+	{"lualatex", []string{"-pdf"}},
+}
+var DefaultEngine = engines[0]
 
-func SupportedEngines() []Engine {
-	return []Engine{PDFLaTeX, XeLaTeX, LuaLaTeX}
+func SupportedEngines() (e []string) {
+	for _, engine := range engines {
+		e = append(e, engine.Name)
+	}
+	return
 }
 
 func ParseTeXEngine(s string) (Engine, error) {
-	switch x := Engine(s); x {
-	case PDFLaTeX, XeLaTeX, LuaLaTeX:
-		return x, nil
-	default:
-		return "", ErrUnsupportedEngine(x)
+	for _, engine := range engines {
+		if engine.Name == s {
+			return engine, nil
+		}
 	}
-}
-
-var DefaultEngine = XeLaTeX
-
-func (x Engine) CmdFlags() ([]string, error) {
-	switch x {
-	case XeLaTeX:
-		return []string{"-pdfxe"}, nil
-	case LuaLaTeX:
-		return []string{"-pdflua"}, nil
-	case PDFLaTeX:
-		return []string{"-pdf"}, nil
-	default:
-		return nil, ErrUnsupportedEngine(x)
-	}
+	return Engine{}, ErrUnsupportedEngine(s)
 }
 
 func (x Engine) String() string {
-	return string(x)
+	return x.Name
 }
 
-type ErrUnsupportedEngine Engine
+type ErrUnsupportedEngine string
 
 func (err ErrUnsupportedEngine) Error() string {
 	return fmt.Sprintf("unsupported TeX engine: %q", string(err))
