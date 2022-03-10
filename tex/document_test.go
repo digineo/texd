@@ -186,6 +186,7 @@ func TestDocument(t *testing.T) {
 }
 
 func TestFile_flags(t *testing.T) {
+	t.Parallel()
 	assert := assert.New(t)
 
 	subject := File{"", 0}
@@ -211,6 +212,7 @@ func TestFile_flags(t *testing.T) {
 }
 
 func TestDocument_MainInput(t *testing.T) {
+	t.Parallel()
 	assert := assert.New(t)
 	require := require.New(t)
 

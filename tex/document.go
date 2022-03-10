@@ -225,8 +225,7 @@ func (doc *document) MainInput() (string, error) {
 		{others, "multiple candidates"},
 	} {
 		if n := len(candidates.files); n == 1 {
-			doc.mainInput = candidates.files[0].name
-			return doc.mainInput, nil
+			return candidates.files[0].name, nil
 		} else if n > 1 {
 			msg := "cannot determine main input file: " + candidates.context
 			return "", InputError(msg, nil, KV{"candidates": candidates.files})
@@ -237,9 +236,9 @@ func (doc *document) MainInput() (string, error) {
 }
 
 func (doc *document) GetResult() (io.ReadCloser, error) {
-	input := doc.mainInput
-	if input == "" {
-		return nil, InputError("no main input specified", nil, nil)
+	input, err := doc.MainInput()
+	if err != nil { // unlikely at this point
+		return nil, InputError("no main input specified", err, nil)
 	}
 
 	extpos := strings.LastIndexByte(input, '.')
