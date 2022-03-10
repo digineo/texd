@@ -1,6 +1,8 @@
 package tex
 
 import (
+	"io"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -37,11 +39,13 @@ func (f *File) hasTexdMark() bool      { return f.flags&flagTexdMark > 0 }
 type Document interface {
 	WorkingDirectory() (string, error)
 	AddFile(name, contents string) error
+	AddFiles(url.Values) error
 	Cleanup() error
 	Image() string
 	Engine() Engine
 	SetMainInput(string) error
 	MainInput() (string, error)
+	GetResult() (io.ReadCloser, error)
 }
 
 type document struct {
@@ -95,9 +99,7 @@ func (doc *document) AddFile(name, contents string) (err error) {
 		// add file name as context to error
 		if err != nil {
 			if cat, ok := err.(*ErrWithCategory); ok {
-				cat.extra = kv{
-					"filename": name,
-				}
+				cat.extra = KV{"filename": name}
 			}
 			// cleanup file list
 			if file.name != "" {
@@ -169,6 +171,20 @@ func (doc *document) AddFile(name, contents string) (err error) {
 	return nil
 }
 
+func (doc *document) AddFiles(vs url.Values) error {
+	for name, contents := range vs {
+		// AddFile() will only accept one boby per file name and construct
+		// a proper error message. No need to perform something akin to
+		// `AddFile(contents[0]) if len(contents) == 1` here.
+		for _, content := range contents {
+			if err := doc.AddFile(name, content); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (doc *document) SetMainInput(name string) error {
 	doc.RLock()
 	defer doc.RUnlock()
@@ -208,16 +224,35 @@ func (doc *document) MainInput() (string, error) {
 		{withDocClass, "multiple files with \\documentclass"},
 		{others, "multiple candidates"},
 	} {
-
 		if n := len(candidates.files); n == 1 {
-			return candidates.files[0].name, nil
+			doc.mainInput = candidates.files[0].name
+			return doc.mainInput, nil
 		} else if n > 1 {
 			msg := "cannot determine main input file: " + candidates.context
-			return "", InputError(msg, nil, kv{"candidates": candidates.files})
+			return "", InputError(msg, nil, KV{"candidates": candidates.files})
 		}
 	}
 
 	return "", InputError("cannot determine main input file: no candidates", nil, nil)
+}
+
+func (doc *document) GetResult() (io.ReadCloser, error) {
+	input := doc.mainInput
+	if input == "" {
+		return nil, InputError("no main input specified", nil, nil)
+	}
+
+	extpos := strings.LastIndexByte(input, '.')
+	if extpos <= 0 {
+		return nil, InputError("invalid main input file name", nil, nil)
+	}
+
+	output := input[:extpos] + ".pdf"
+	f, err := doc.fs.Open(path.Join(doc.workdir, output))
+	if err != nil {
+		return nil, CompilationError("failed to open output file for reading", err, nil)
+	}
+	return f, nil
 }
 
 func cleanpath(name string) (clean string, ok bool) {

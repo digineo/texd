@@ -26,32 +26,32 @@ func (cat errCategory) String() string {
 	}
 }
 
-type kv map[string]interface{}
+type KV map[string]interface{}
 
 type ErrWithCategory struct {
 	cat     errCategory
 	message string
 	cause   error
-	extra   kv
+	extra   KV
 }
 
-func newCategoryError(cat errCategory, message string, cause error, extra kv) error {
+func newCategoryError(cat errCategory, message string, cause error, extra KV) error {
 	return &ErrWithCategory{cat: cat, message: message, cause: cause, extra: extra}
 }
 
-func InputError(message string, cause error, extra kv) error {
+func InputError(message string, cause error, extra KV) error {
 	return newCategoryError(inputErr, message, cause, extra)
 }
 
-func CompilationError(message string, cause error, extra kv) error {
+func CompilationError(message string, cause error, extra KV) error {
 	return newCategoryError(compilationErr, message, cause, extra)
 }
 
-func QueueError(message string, cause error, extra kv) error {
+func QueueError(message string, cause error, extra KV) error {
 	return newCategoryError(queueErr, message, cause, extra)
 }
 
-func UnknownError(message string, cause error, extra kv) error {
+func UnknownError(message string, cause error, extra KV) error {
 	return newCategoryError(0, message, cause, extra)
 }
 
@@ -67,7 +67,7 @@ func (err *ErrWithCategory) Unwrap() error {
 }
 
 func (err *ErrWithCategory) MarshalJSON() ([]byte, error) {
-	data := kv{
+	data := KV{
 		"error":    err.message, // omit cause, could leak internal data
 		"category": err.cat.String(),
 	}

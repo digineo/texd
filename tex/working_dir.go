@@ -62,11 +62,7 @@ func SetJobBaseDir(dir string) error {
 }
 
 func stat_t(st os.FileInfo) *syscall.Stat_t {
-	sys := st.Sys()
-	if sys == nil {
-		return nil
-	}
-	switch typ := sys.(type) {
+	switch typ := st.Sys().(type) {
 	case syscall.Stat_t:
 		return &typ
 	case *syscall.Stat_t:
