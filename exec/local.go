@@ -1,7 +1,9 @@
 package exec
 
 import (
+	"bytes"
 	"context"
+	"os/exec"
 
 	"github.com/dmke/texd/tex"
 )
@@ -16,6 +18,23 @@ func NewLocalExec(doc tex.Document) Exec {
 	}
 }
 
-func (x *localExec) Run(ctx context.Context) (Result, error) {
-	return nil, nil
+func (x *localExec) Run(ctx context.Context) error {
+	dir, flags, err := x.extract()
+	if err != nil {
+		return tex.CompilationError("invalid document", err, nil)
+	}
+
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "latexmk", flags...) // #nosec
+	cmd.Dir = dir
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return tex.CompilationError("compilation failed", err, tex.KV{
+			"flags":  flags,
+			"stderr": stderr.String(),
+		})
+	}
+
+	return nil
 }

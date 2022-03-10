@@ -7,12 +7,7 @@ import (
 )
 
 type Exec interface {
-	Run(context.Context) (Result, error)
-}
-
-type Result interface {
-	Success() bool
-	Cleanup() error
+	Run(context.Context) error
 }
 
 type baseExec struct {
@@ -21,17 +16,14 @@ type baseExec struct {
 }
 
 func (x *baseExec) extract() (dir string, cmd []string, err error) {
-	flags, err := x.doc.Engine().CmdFlags()
-	if err != nil {
-		return "", nil, err
-	}
+	flags := x.doc.Engine().Flags
+
 	main, err := x.doc.MainInput()
 	if err != nil {
 		return "", nil, err
 	}
 
-	cmd = []string{"latexmk"}
-	cmd = append(cmd, flags...)
+	cmd = append(cmd, flags...) // creates duplicate
 	cmd = append(cmd, main)
 	dir, err = x.doc.WorkingDirectory()
 	return

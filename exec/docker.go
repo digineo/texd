@@ -16,6 +16,6 @@ func NewDockerExec(doc tex.Document) Exec {
 	}
 }
 
-func (x *dockerExec) Run(ctx context.Context) (Result, error) {
-	return nil, nil
+func (x *dockerExec) Run(ctx context.Context) error {
+	return nil
 }
