@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dmke/texd/cmd"
+	"github.com/dmke/texd/exec"
 	"github.com/dmke/texd/tex"
 	flag "github.com/spf13/pflag"
 )
@@ -28,12 +29,14 @@ var (
 	timeout     = time.Minute
 	concurrency = runtime.GOMAXPROCS(0)
 	queueLen    = 1000
-	mode        = modeLocal
+	executor    = exec.NewLocalExec
 	jobdir      = ""
 	images      []string
 )
 
 func main() {
+	log.SetFlags(log.Llongfile)
+
 	flag.StringVarP(&addr, "listen-address", "b", addr,
 		"bind `address` for the HTTP API")
 	flag.StringVarP(&engine, "tex-engine", "X", engine,
@@ -49,7 +52,7 @@ func main() {
 	flag.Parse()
 
 	if images = flag.Args(); len(images) > 0 {
-		mode = modeContainer
+		executor = exec.NewDockerExec
 	}
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
@@ -62,7 +65,7 @@ func main() {
 		log.Fatalf("error parsing --tex-engine: %v", err)
 	}
 
-	stop := cmd.StartWeb(addr, queueLen)
+	stop := cmd.StartWeb(addr, queueLen, executor)
 	onExit(stop)
 }
 
