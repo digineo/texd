@@ -19,16 +19,16 @@ func (dc *DockerClient) Executor(doc tex.Document) Exec {
 }
 
 func (x *dockerExec) Run(ctx context.Context) error {
-	dir, flags, err := x.extract()
+	dir, cmd, err := x.extract()
 	if err != nil {
 		return tex.CompilationError("invalid document", err, nil)
 	}
 
 	tag := x.doc.Image()
-	output, err := x.cli.Run(ctx, tag, dir, flags)
+	output, err := x.cli.Run(ctx, tag, dir, cmd)
 	if err != nil {
 		return tex.CompilationError("compilation failed", err, tex.KV{
-			"flags":  flags,
+			"flags":  cmd,
 			"output": output,
 			"image":  tag,
 		})
