@@ -19,6 +19,13 @@ const Mark = "%!texd"
 // can be overriden in tests
 var osfs = afero.NewOsFs()
 
+// ForbiddenFiles is a list of file names which are not allowed for
+// security reasons.
+var ForbiddenFiles = []string{
+	// latexmk config files are Perl scripts
+	"latexmkrc", ".latexmkrc",
+}
+
 type candidateFlags uint8
 
 const (
@@ -256,14 +263,24 @@ func (doc *document) GetResult() (io.ReadCloser, error) {
 
 func cleanpath(name string) (clean string, ok bool) {
 	clean = path.Clean(name)
-	if clean == "." || strings.HasPrefix(clean, "..") || strings.HasPrefix(clean, "/") {
-		return "", false
-	}
-	if strings.ContainsAny(clean, "\\%$_^&`") {
+	if /* current directory */ clean == "." ||
+		/* forbidden file name */ isForbidden(name) ||
+		/* directory traversal */ strings.HasPrefix(clean, "..") ||
+		/* absolute paths */ strings.HasPrefix(clean, "/") ||
+		/* easyly abusable TeX chars */ strings.ContainsAny(clean, "\\%$_^&`") {
 		return "", false
 	}
 	ok = true
 	return
+}
+
+func isForbidden(name string) bool {
+	for _, n := range ForbiddenFiles {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 func isMainCandidate(name string) bool {
