@@ -3,6 +3,7 @@ package tex
 import (
 	"fmt"
 	"os"
+	"path"
 	"syscall"
 )
 
@@ -33,6 +34,15 @@ func (err *ErrInvalidWorkDir) Unwrap() error {
 func SetJobBaseDir(dir string) error {
 	if dir == "" {
 		dir = os.TempDir()
+	}
+
+	dir = path.Clean(dir)
+	if !path.IsAbs(dir) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return &ErrInvalidWorkDir{dir, err}
+		}
+		dir = path.Join(wd, dir)
 	}
 
 	st, err := osfs.Stat(dir)

@@ -16,7 +16,7 @@ import (
 // should specify main files explicitly.
 const Mark = "%!texd"
 
-// can be overriden in tests
+// osfs can be overridden in tests.
 var osfs = afero.NewOsFs()
 
 // ForbiddenFiles is a list of file names which are not allowed for
@@ -53,6 +53,7 @@ type Document interface {
 	SetMainInput(string) error
 	MainInput() (string, error)
 	GetResult() (io.ReadCloser, error)
+	GetLogs() (io.ReadCloser, error)
 }
 
 type document struct {
@@ -242,7 +243,10 @@ func (doc *document) MainInput() (string, error) {
 	return "", InputError("cannot determine main input file: no candidates", nil, nil)
 }
 
-func (doc *document) GetResult() (io.ReadCloser, error) {
+// openFile opens an auxiliary file for reading. Auxiliary files are files
+// with the same name stem as the main input file, but with a different
+// extension.
+func (doc *document) openFile(ext string) (io.ReadCloser, error) {
 	input, err := doc.MainInput()
 	if err != nil { // unlikely at this point
 		return nil, InputError("no main input specified", err, nil)
@@ -253,12 +257,22 @@ func (doc *document) GetResult() (io.ReadCloser, error) {
 		return nil, InputError("invalid main input file name", nil, nil)
 	}
 
-	output := input[:extpos] + ".pdf"
+	output := input[:extpos] + ext
 	f, err := doc.fs.Open(path.Join(doc.workdir, output))
 	if err != nil {
-		return nil, CompilationError("failed to open output file for reading", err, nil)
+		return nil, CompilationError("failed to open output file for reading", err, KV{
+			"file": output,
+		})
 	}
 	return f, nil
+}
+
+func (doc *document) GetResult() (io.ReadCloser, error) {
+	return doc.openFile(".pdf")
+}
+
+func (doc *document) GetLogs() (io.ReadCloser, error) {
+	return doc.openFile(".log")
 }
 
 func cleanpath(name string) (clean string, ok bool) {

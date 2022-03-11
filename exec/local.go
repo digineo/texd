@@ -12,7 +12,7 @@ type localExec struct {
 	baseExec
 }
 
-func NewLocalExec(doc tex.Document) Exec {
+func LocalExec(doc tex.Document) Exec {
 	return &localExec{
 		baseExec: baseExec{doc: doc},
 	}

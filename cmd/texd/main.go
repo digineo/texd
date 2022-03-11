@@ -10,44 +10,37 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmke/texd/cmd"
 	"github.com/dmke/texd/exec"
+	"github.com/dmke/texd/service"
 	"github.com/dmke/texd/tex"
 	flag "github.com/spf13/pflag"
 )
 
-type opMode uint8
-
-const (
-	modeLocal opMode = iota
-	modeContainer
-)
+var opts = service.Options{
+	Addr:        ":2201",
+	QueueLength: runtime.GOMAXPROCS(0),
+	Timeout:     time.Minute,
+	Mode:        "local",
+	Executor:    exec.LocalExec,
+}
 
 var (
-	addr        = ":2201"
-	engine      = tex.DefaultEngine.Name
-	timeout     = time.Minute
-	concurrency = runtime.GOMAXPROCS(0)
-	queueLen    = 1000
-	executor    = exec.NewLocalExec
-	jobdir      = ""
-	images      []string
-	pull        = false
+	engine = tex.DefaultEngine.Name()
+	jobdir = ""
+	pull   = false
 )
 
 func main() {
 	log.SetFlags(log.Llongfile)
 
-	flag.StringVarP(&addr, "listen-address", "b", addr,
+	flag.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
 		"bind `address` for the HTTP API")
 	flag.StringVarP(&engine, "tex-engine", "X", engine,
 		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
-	flag.DurationVarP(&timeout, "processing-timeout", "t", timeout,
+	flag.DurationVarP(&opts.Timeout, "processing-timeout", "t", opts.Timeout,
 		"maximum rendering time")
-	flag.IntVarP(&concurrency, "parallel-jobs", "P", concurrency,
+	flag.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
 		"maximum `number` of parallel rendereing jobs")
-	flag.IntVarP(&queueLen, "queue-length", "q", queueLen,
-		"maximum `length` of queue")
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
 	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
@@ -57,23 +50,25 @@ func main() {
 		log.Fatalf("error parsing --job-directory: %v", err)
 	}
 
-	if x, err := tex.ParseTeXEngine(engine); err == nil {
-		tex.DefaultEngine = x
-	} else {
+	if err := tex.SetDefaultEngine(engine); err != nil {
 		log.Fatalf("error parsing --tex-engine: %v", err)
 	}
 
-	if images = flag.Args(); len(images) > 0 {
+	if images := flag.Args(); len(images) > 0 {
 		cli, err := exec.NewDockerClient()
 		if err != nil {
 			log.Fatalf("error connecting to dockerd: %v", err)
 		}
 
-		cli.SetImages(context.Background(), pull, images...)
-		executor = cli.Executor
+		opts.Images, err = cli.SetImages(context.Background(), pull, images...)
+		opts.Mode = "container"
+		if err != nil {
+			log.Fatalf("error setting images: %v", err)
+		}
+		opts.Executor = cli.Executor
 	}
 
-	stop := cmd.StartWeb(addr, queueLen, executor)
+	stop := service.Start(opts)
 	onExit(stop)
 }
 
