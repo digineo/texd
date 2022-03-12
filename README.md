@@ -1,7 +1,7 @@
 # texd
 
-texd is a TeXaS (TeX as (a) service) solution, designed for your internal document generation (i.e.,
-on your own servers).
+texd is a TeXaS (TeX as (a) service) solution, designed for your internal document generation, i.e.
+on your own servers.
 
 It features:
 
@@ -17,7 +17,7 @@ client system, just an HTTP client.
 Several technologies make scaling in any dimension relatively easy:
 
 - the TeX distribution is provided through Docker containers (this also allows using multiple
-  distributions simulatenously)
+  distributions simultaneously)
 - using HTTP enables redundancy and/or load balancing without much effort
 
 ## Early Development Note
@@ -112,7 +112,7 @@ $ docker run --rm -t dmke/texd:latest -h
 
 - `--version`, `-v`
 
-  Prints version information and exists.
+  Prints version information and exits.
 
 - `--listen-address=ADDR`, `-b ADDR` (Default: `:2201`)
 
@@ -121,30 +121,32 @@ $ docker run --rm -t dmke/texd:latest -h
 
   - `:2201` (bind to all addresses on port 2201)
   - `localhost:2201` (bind only to localhost on port 2201)
-  - `[fe80::dead:c0ff:fe42:beef%eth0]:2201` (bind to a link-local IPv6 address on a specific interface)
+  - `[fe80::dead:c0ff:fe42:beef%eth0]:2201` (bind to a link-local IPv6 address on a specific
+    interface)
 
 - `--tex-engine=ENGINE`, `-X ENGINE` (Default: `xelatex`)
 
-  TeX engine used to compile documents. Can be overridden on a per-request basis (see HTTP API below).
-  Supported engines are `xelatex`, `lualatex`, and `pdflatex`.
+  TeX engine used to compile documents. Can be overridden on a per-request basis (see HTTP API
+  below). Supported engines are `xelatex`, `lualatex`, and `pdflatex`.
 
-- `--processing-timeout=DURATION`, `-t DURATION` (Default: `1m`)
+- `--compile-timeout=DURATION`, `-t DURATION` (Default: `1m`)
 
   Maximum duration for a document rendering process before it is killed by texd. The value must be
   acceptable by Go's `ParseDuruation` function.
 
 - `--parallel-jobs=NUM`, `-P NUM` (Default: number of cores)
 
-  Concurrency level. PDF rendering is inherently single threaded, so limiting the document processing
-  to the number of cores is a good start.
+  Concurrency level. PDF rendering is inherently single threaded, so limiting the document
+  processing to the number of cores is a good start.
 
-- `--queue-length=NUM`, `-q NUM` (Default: 1000)
+- `--queue-wait=DURATION`, `-w DURATION` (Default: `10s`)
 
-  Maximum number of jobs to be enqueued before the HTTP API returns with an error.
+  Time to wait in queue before aborting. When <= 0, clients will immediately receive a "full queue"
+  response.
 
 - `--job-directory=PATH`, `-D PATH` (Default: OS temp directory)
 
-  Place to put job sub-directories in. The path must exist and it must be writable.
+  Place to put job sub directories in. The path must exist and it must be writable.
 
 - `--pull` (Default: omitted)
 
@@ -172,7 +174,7 @@ $ curl -X POST \
 Please note that filenames will be normalized, and files pointing outside the root directory
 will be discarded entirely (i.e. `../input.tex` is NOT a valid file name).
 
-You can send multiple files (even in subdirectories) as well:
+You can send multiple files (even in sub directories) as well:
 
 ```console
 $ curl -X POST \
@@ -190,11 +192,11 @@ will try to guess the input file.
 
 - only filenames starting with alphanumeric character and ending in `.tex` are considered
   (`foo.tex`, `00-intro.tex` will be considered, but not `_appendix.tex`, `figure.png`)
-- files in subdirectories are ignored (e.g. `chapters/a.tex`)
+- files in sub directories are ignored (e.g. `chapters/a.tex`)
 - if only one file in the root directory remains, it is taken as main input
   - otherwise search for a file containing a line starting with:
     - either `%!texd` at the beginning of the file
-    - or `\documentclass` somethere in the first KiB
+    - or `\documentclass` somewhere in the first KiB
   - if no match, consider (in order):
     - `input.tex`
     - `main.tex`
@@ -224,7 +226,7 @@ If no main input file can be determined, texd will abort with an error.
 - `image=<imagename>` - selects Docker image for document processing.
 
   This is only available in *ephemeral container* mode. The image name must match the ones listed
-  in the texd command invokation, i.e. you can't select arbitrary images.
+  in the texd command invocation, i.e. you can't select arbitrary images.
 
   If you provide an unknown image name, you will receive a 404 Not Found response. In *local* and
   *CI service* mode, this parameter only logged, but will otherwise be ignored.
@@ -245,7 +247,7 @@ If no main input file can be determined, texd will abort with an error.
 
 #### Successful response
 
-If compilation succeedes, you'll receive a status 200 OK, with content type `application/pdf`, and
+If compilation succeeds, you'll receive a status 200 OK, with content type `application/pdf`, and
 the PDF file as response body.
 
 ```http
@@ -394,14 +396,14 @@ The metrics include Go runtime information, as well as texd specific metrics:
 Metrics related to processing also have an `engine=?` label indicating the TeX engine ("xelatex",
 "lualatex", or "pdflatex"), and an `image=?` label indicating the Docker image.
 
-### Simple UI
+### Simple Web UI
 
 You can try compiling TeX documents directly in your browser: Visit http://localhost:2201, and
 you'll be greeted with a very basic, but functional UI.
 
 Please note, that this UI is *not* built to work in every browser. It intentionally does not
 use fancy build tools. It's just a simple HTML file, built by hand, using Bootstrap 5 for
-esthetics and Vue 3 for interaction. Both Bootstrap and Vue are bundled with texd, so you won't
+aesthetics and Vue 3 for interaction. Both Bootstrap and Vue are bundled with texd, so you won't
 need internet access for this to work.
 
 If your browser does not support modern features like ES2022 proxies, `Object.entries`, `fetch`,
@@ -413,7 +415,7 @@ Anyway, consider the UI only as demonstrator for the API.
 texd came to life because I've build dozens of Rails applications, which all needed to build PDF
 documents in one form or another (from recipies, to invoices, order confirmations, reports and
 technical documentation). Each server basically needed a local TeX installation (weighing in at
-several 100 MB, upto serveral GB). Compiling many LaTeX documents also became a bottleneck for
+several 100 MB, up to several GB). Compiling many LaTeX documents also became a bottleneck for
 applications running on otherwise modest hardware (or cloud VMs), as this process is also
 computationally expensive.
 
@@ -434,7 +436,7 @@ and again.
 It would be nice if clients could manage "projects" or "templates", i.e. a directory with a preset
 list of static assets (like images, fonts, or document classes), and send only the dynamic files for
 compilation. While I don't have reliable numbers (yet), I suspect this could save a lot of
-bandwidth (assets like images are not easily transfer-compressable and their file size are orders of
+bandwidth (assets like images are not easily transfer-compressible and their file size are orders of
 magnitude larger then plaintext `.tex` files).
 
 This would however introduce a state and managing it will introduce quite a lot of complexity on
