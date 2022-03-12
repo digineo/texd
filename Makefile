@@ -80,6 +80,17 @@ test-load: tmp ## sends 200 documents to a running instance
 		$(MAKE) -j2 test-multi test-missing & \
 	done
 
+## release engineering
+
+.PHONY: release-test
+release-test: ## runs goreleaser, but skips publishing
+	goreleaser release --rm-dist --skip-publish
+
+.PHONY: release-publish
+release-publish: ## runs goreleaser and publishes artifacts
+	goreleaser release --rm-dist
+
+
 ## misc
 
 tmp:

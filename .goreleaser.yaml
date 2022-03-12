@@ -1,0 +1,68 @@
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - main: ./cmd/texd
+    binary: texd
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/dmke/texd.version={{ .Version }}
+      - -X github.com/dmke/texd.commit={{ .Commit }}
+      - -X github.com/dmke/texd.commitat={{ .CommitDate }}
+      - -X github.com/dmke/texd.buildat={{ .Date }}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+archives:
+  - replacements:
+      linux: Linux
+      darwin: macOS
+nfpms:
+  - package_name: texd
+    vendor: Dominik Menke
+    homepage: https://github.com/dmke/texd
+    maintainer: Dominik Menke <git@dmke.org>
+    description: |-
+      texd wraps a local TeX installion into a web service.
+      Alternatively, texd executes each compilation job in an isolated
+      Docker container.
+    license: MIT
+    formats:
+      - deb
+    contents:
+      - src: debian/texd.service
+        dst: /lib/systemd/system/texd.service
+    scripts:
+      postinstall:  debian/postinstall.sh
+      preremove:    debian/preremove.sh
+      postremove:   debian/postremove.sh
+    overrides:
+      deb:
+        recommends:
+          - latexmk
+          - texlive-xetex
+dockers:
+  - goos: linux
+    goarch: amd64
+    image_templates:
+      - dmke/texd:latest
+      - dmke/texd:{{ .Tag }}
+      - dmke/texd:v{{ .Major }}
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--platform=linux/amd64"
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
