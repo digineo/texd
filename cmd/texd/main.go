@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 
+	"github.com/dmke/texd"
 	"github.com/dmke/texd/exec"
 	"github.com/dmke/texd/service"
 	"github.com/dmke/texd/tex"
@@ -31,7 +33,8 @@ var (
 )
 
 func main() {
-	log.SetFlags(log.Llongfile)
+	log.SetFlags(log.Lshortfile)
+	texd.PrintBanner(os.Stdout)
 
 	flag.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
 		"bind `address` for the HTTP API")
@@ -44,7 +47,13 @@ func main() {
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
 	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
+	versionRequested := flag.Bool("version", false, `print version information and exit`)
 	flag.Parse()
+
+	if *versionRequested {
+		printVersion()
+		os.Exit(0)
+	}
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
 		log.Fatalf("error parsing --job-directory: %v", err)
@@ -111,4 +120,25 @@ func onExit(stopper ...stopFun) {
 		log.Println("shutdown incomplete, exiting anyway")
 	}
 	cancel()
+}
+
+func printVersion() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	fmt.Printf("\nGo: %s, %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+
+	const l = "  %-10s %-50s %s\n"
+	fmt.Println("Dependencies:")
+	fmt.Printf(l, "main", info.Main.Path, texd.Version())
+	for _, i := range info.Deps {
+		if r := i.Replace; r == nil {
+			fmt.Printf(l, "dep", i.Path, i.Version)
+		} else {
+			fmt.Printf(l, "dep", r.Path, r.Version)
+			fmt.Printf(l, "  replaces", i.Path, i.Version)
+		}
+	}
 }

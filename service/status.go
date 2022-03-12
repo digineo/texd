@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/dmke/texd"
 	"github.com/dmke/texd/tex"
 )
 
@@ -22,7 +23,7 @@ type Status struct {
 
 func (svc *service) HandleStatus(res http.ResponseWriter, req *http.Request) {
 	status := Status{
-		Version:       "0.0.0", // TODO
+		Version:       texd.Version(),
 		Mode:          svc.mode,
 		Images:        svc.images,
 		Timeout:       svc.timeout.Seconds(),
