@@ -52,6 +52,8 @@ func Start(opts Options) func(context.Context) error {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
+	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
+
 	r.HandleFunc("/render", svc.HandleRender).Methods(http.MethodPost)
 	r.HandleFunc("/status", svc.HandleStatus).Methods(http.MethodGet)
 	r.HandleFunc("/metrics", svc.HandleMetrics).Methods(http.MethodGet)
