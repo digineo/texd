@@ -9,9 +9,9 @@ import (
 
 func (svc *service) acquire(ctx context.Context) error {
 	// don't wait too long for other jobs to complete.
-	maxWait := svc.timeout / 4
+	maxWait := svc.queueTimeout
 	if maxWait < 0 {
-		maxWait = 10 * time.Second
+		maxWait = time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, maxWait)
 	defer cancel()

@@ -19,11 +19,12 @@ import (
 )
 
 var opts = service.Options{
-	Addr:        ":2201",
-	QueueLength: runtime.GOMAXPROCS(0),
-	Timeout:     time.Minute,
-	Mode:        "local",
-	Executor:    exec.LocalExec,
+	Addr:           ":2201",
+	QueueLength:    runtime.GOMAXPROCS(0),
+	QueueTimeout:   10 * time.Second,
+	CompileTimeout: time.Minute,
+	Mode:           "local",
+	Executor:       exec.LocalExec,
 }
 
 var (
@@ -40,14 +41,16 @@ func main() {
 		"bind `address` for the HTTP API")
 	flag.StringVarP(&engine, "tex-engine", "X", engine,
 		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
-	flag.DurationVarP(&opts.Timeout, "processing-timeout", "t", opts.Timeout,
+	flag.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
 		"maximum rendering time")
 	flag.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
 		"maximum `number` of parallel rendereing jobs")
+	flag.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
+		"maximum wait time in full rendering queue")
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
 	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
-	versionRequested := flag.Bool("version", false, `print version information and exit`)
+	versionRequested := flag.BoolP("version", "v", false, `print version information and exit`)
 	flag.Parse()
 
 	if *versionRequested {

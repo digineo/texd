@@ -26,7 +26,7 @@ func (svc *service) HandleStatus(res http.ResponseWriter, req *http.Request) {
 		Version:       texd.Version(),
 		Mode:          svc.mode,
 		Images:        svc.images,
-		Timeout:       svc.timeout.Seconds(),
+		Timeout:       svc.compileTimeout.Seconds(),
 		Engines:       tex.SupportedEngines(),
 		DefaultEngine: tex.DefaultEngine.Name(),
 	}

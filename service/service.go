@@ -24,30 +24,33 @@ const (
 )
 
 type Options struct {
-	Addr        string
-	QueueLength int
-	Executor    func(tex.Document) exec.Exec
-	Timeout     time.Duration
-	Mode        string
-	Images      []string
+	Addr           string
+	QueueLength    int
+	QueueTimeout   time.Duration
+	Executor       func(tex.Document) exec.Exec
+	CompileTimeout time.Duration
+	Mode           string
+	Images         []string
 }
 
 type service struct {
 	mode   string
 	images []string
 
-	jobs     chan struct{}
-	executor func(tex.Document) exec.Exec
-	timeout  time.Duration
+	jobs           chan struct{}
+	executor       func(tex.Document) exec.Exec
+	compileTimeout time.Duration
+	queueTimeout   time.Duration
 }
 
 func Start(opts Options) func(context.Context) error {
 	svc := &service{
-		mode:     opts.Mode,
-		jobs:     make(chan struct{}, opts.QueueLength),
-		executor: opts.Executor,
-		timeout:  opts.Timeout,
-		images:   opts.Images,
+		mode:           opts.Mode,
+		jobs:           make(chan struct{}, opts.QueueLength),
+		executor:       opts.Executor,
+		compileTimeout: opts.CompileTimeout,
+		queueTimeout:   opts.QueueTimeout,
+		images:         opts.Images,
 	}
 
 	r := mux.NewRouter()

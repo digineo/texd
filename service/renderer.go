@@ -16,9 +16,9 @@ func (svc *service) Close() {
 }
 
 func (svc *service) HandleRender(res http.ResponseWriter, req *http.Request) {
-	if svc.timeout > 0 {
+	if svc.compileTimeout > 0 {
 		// apply global render timeout
-		ctx, cancel := context.WithTimeout(req.Context(), svc.timeout)
+		ctx, cancel := context.WithTimeout(req.Context(), svc.compileTimeout)
 		defer cancel()
 		req = req.WithContext(ctx)
 	}
