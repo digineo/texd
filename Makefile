@@ -61,12 +61,5 @@ test-load: tmp
 
 ## misc
 
-.PHONY: texlive-2020-image
-texlive-2020-image:
-	docker build --pull --rm \
-		-f docker/Dockerfile.texlive2020 \
-		--tag texd-texlive2020 \
-		docker
-
 tmp:
 	mkdir -p ./tmp
