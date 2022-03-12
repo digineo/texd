@@ -20,6 +20,7 @@ const (
 	mimeTypeJSON  = "application/json; charset=utf-8"
 	mimeTypePDF   = "application/pdf"
 	mimeTypePlain = "text/plain; charset=utf-8"
+	mimeTypeHTML  = "text/html; charset=utf-8"
 )
 
 type Options struct {
@@ -50,6 +51,7 @@ func Start(opts Options) func(context.Context) error {
 	}
 
 	r := mux.NewRouter()
+	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.HandleFunc("/render", svc.HandleRender).Methods(http.MethodPost)
 	r.HandleFunc("/status", svc.HandleStatus).Methods(http.MethodGet)
 	r.HandleFunc("/metrics", svc.HandleMetrics).Methods(http.MethodGet)
