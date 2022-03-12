@@ -91,6 +91,15 @@ release-publish: ## runs goreleaser and publishes artifacts
 	goreleaser release --rm-dist
 
 
+.PHONY: bump bump-major bump-minor bump-patch
+bump: bump-patch ## bump version
+bump-major: ## bump major version
+	go run ./cmd/build bump --major
+bump-minor: ## bump minor version
+	go run ./cmd/build bump --minor
+bump-patch: ## bump patch version
+	go run ./cmd/build bump
+
 ## misc
 
 tmp:
