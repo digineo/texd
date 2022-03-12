@@ -146,6 +146,12 @@ $ docker run --rm -t dmke/texd:latest -h
 
   Place to put job sub-directories in. The path must exist and it must be writable.
 
+- `--pull` (Default: omitted)
+
+  Always pulls Docker images. By default, images are only pulled when they don't exist locally.
+
+  This has no effect when no image tags are given to the command line.
+
 > Note: This option listing might be outdated. Run `texd --help` to get the up-to-date listing.
 
 ## HTTP API
@@ -154,7 +160,8 @@ $ docker run --rm -t dmke/texd:latest -h
 
 ### Render a document
 
-To create a PDF document from an input `.tex` file, send a HTTP POST to the `/render` endpoint:
+To create a PDF document from an input `.tex` file, send a HTTP POST to the `/render` endpoint.
+You may encode the payload as `multipart/form-data` or `application/x-www-form-encoded`:
 
 ```console
 $ curl -X POST \
@@ -175,9 +182,11 @@ $ curl -X POST \
     http://localhost:2201/render\?input=cv.tex
 ```
 
-If sending multiple files, you should specify which one is the main input file (usually the one
+When sending multiple files, you should specify which one is the main input file (usually the one
 containing `\documentclass`), using the `input=` query parameter. If you omit this parameter, texd
-will try to guess the input file:
+will try to guess the input file.
+
+<details><summary>Guessing the input file (click to show details)</summary>
 
 - only filenames starting with alphanumeric character and ending in `.tex` are considered
   (`foo.tex`, `00-intro.tex` will be considered, but not `_appendix.tex`, `figure.png`)
@@ -191,58 +200,13 @@ will try to guess the input file:
     - `main.tex`
     - `document.tex`
 
+</details>
+
 If no main input file can be determined, texd will abort with an error.
 
 > Note (implementation detail): I would have preferred to use the *first* `.tex` file to be the
 > main input file, but Go's form data parsing will convert the request body in to a key/value map
 > (which are unordered and have a randomized order when iterating over their entries).
-
-#### Responses
-
-If compilation succeedes, you'll receive a status 200 OK, with content type `application/pdf`, and
-the PDF file as response body.
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/pdf
-Content-Length: 1234
-
-%PDF/1.5...
-```
-
-If the request was accepted, but could not complete due to errors, you will receive a 422
-Unprocessable Entity response with content type `application/json`, and an error description in
-JSON format:
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json
-Content-Length: 151
-
-{
-  "error": "latexmk call failed with status 1",
-  "category": "compilation",
-  "log": "[truncated output log]"
-}
-```
-
-The fields `error` and `category` represent a short error description and an error category,
-respectively.
-
-Possible, known error categories are currently:
-
-- *input* - one or more files are invalid (e.g. file was discarded after path normalization),
-  or the main input file could not be determined.
-
-- *compilation* - `latexmk` exited with an error (likely due to invalid or missing input files).
-
-- *queue* - texd won't accept new render jobs, if its internal queue is at capacity. In this case
-  wait for a few moments to give texd a chance to catch up and then try again.
-
-Additional fields, like `log` for compilation failures, might be present.
-
-> Note: The JSON response is pretty-printed only for this README. Expect the actual response to
-> be minified.
 
 #### URL Parameters
 
@@ -265,6 +229,114 @@ Additional fields, like `log` for compilation failures, might be present.
   If you provide an unknown image name, you will receive a 404 Not Found response. In *local* and
   *CI service* mode, this parameter only logged, but will otherwise be ignored.
 
+- `errors=<detail level>` - tries to retrieve the compilation log, in case of compilation errors.
+  Acceptable detail levels are:
+
+  - *empty* (or `errors` completely absent), to return a JSON description (default)
+  - `condensed`, to return only the TeX error message from the log file
+  - `full`, to return the full log file as `text/plain` response
+
+  The "condensed" form extracts only the lines from the error log which start with a `!`. Due to
+  the way TeX works, these lines may not paint the full picture, as TeX's log lines generally don't
+  exceed a certain line length, and wrapped lines won't get another `!` prefix.
+
+  Note that this parameter changes the response content to a plain text file if you select `full`
+  or `condensed`, and not a JSON response as in all other cases.
+
+#### Successful response
+
+If compilation succeedes, you'll receive a status 200 OK, with content type `application/pdf`, and
+the PDF file as response body.
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Length: 1234
+
+%PDF/1.5...
+```
+
+#### Failure responses
+
+If the request was accepted, but could not complete due to errors, you will by default receive a 422
+Unprocessable Entity response with content type `application/json`, and an error description in
+JSON format:
+
+```http
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "error": "latexmk call failed with status 1",
+  "category": "compilation",
+  "output": "[truncated output log]"
+}
+```
+
+The fields `error` and `category` represent a short error description and an error category,
+respectively.
+
+Possible, known error categories are currently:
+
+- *input* - one or more files are invalid (e.g. file was discarded after path normalization),
+  or the main input file could not be determined.
+
+- *compilation* - `latexmk` exited with an error (likely due to invalid or missing input files).
+
+- *queue* - texd won't accept new render jobs, if its internal queue is at capacity. In this case
+  wait for a few moments to give texd a chance to catch up and then try again.
+
+Additional fields, like `log` for compilation failures, might be present.
+
+> Note: The JSON response is pretty-printed only for this README. Expect the actual response to
+> be minified.
+
+If you set `errors=full`, you may receive a plain text file with the compilation log:
+
+<details><summary>Show response (click to open)</summary>
+
+```http
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: text/plain
+Content-Length: 3156
+
+This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021) (preloaded format=xelatex 2022.3.6)  12 MAR 2022 13:57
+entering extended mode
+ restricted \write18 enabled.
+ %&-line parsing enabled.
+... ommitting some lines ...
+! LaTeX Error: File `missing.tex' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: tex)
+
+Enter file name:
+! Emergency stop.
+<read *>
+
+l.3 \input{missing.tex}
+                       ^^M
+*** (cannot \read from terminal in nonstop modes)
+```
+
+</details>
+
+For `errors=condensed`, you'll only receive the lines starting with `!` (with this prefix removed):
+
+<details><summary>Show response (click to open)</summary>
+
+```http
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: text/plain
+Content-Length: 59
+
+LaTeX Error: File `missing.tex' not found.
+Emergency stop.
+```
+
+</details>
+
 ### Status and Configuration
 
 texd has a number of runtime configuration knobs and internal state variables, which may or may not
@@ -272,22 +344,27 @@ of interest for API consumers. To receive a current snapshot, query `/status`:
 
 ```console
 $ curl -i http://localhost:2201/status
-Content-Type: application/json
-Content-Length: 178
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 287
 
 {
-  "version": "0.0.0",
-  "mode:     "local",
-  "images":  [],
-  "engines": ["xelatex", "lualatex", "pdflatex"],
+  "version":        "0.0.0",
+  "mode":           "container",
+  "images":         ["texlive/texlive:latest"],
+  "timeout":        60,
+  "engines":        ["xelatex","pdflatex","lualatex"],
+  "default_engine": "xelatex",
   "queue": {
-    "length":   0,
-    "capacity": 100,
-  },
+    "length":       0,
+    "capacity":     16
+  }
 }
 ```
 
 ### Metrics
+
+> TODO: not implemented yet
 
 For monitoring, texd provides a Prometheus endpoint at `/metrics`:
 
@@ -317,6 +394,19 @@ The metrics include Go runtime information, as well as texd specific metrics:
 Metrics related to processing also have an `engine=?` label indicating the TeX engine ("xelatex",
 "lualatex", or "pdflatex"), and an `image=?` label indicating the Docker image.
 
+### Simple UI
+
+You can try compiling TeX documents directly in your browser: Visit http://localhost:2201, and
+you'll be greeted with a very basic, but functional UI.
+
+Please note, that this UI is *not* built to work in every browser. It intentionally does not
+use fancy build tools. It's just a simple HTML file, built by hand, using Bootstrap 5 for
+esthetics and Vue 3 for interaction. Both Bootstrap and Vue are bundled with texd, so you won't
+need internet access for this to work.
+
+If your browser does not support modern features like ES2022 proxies, `Object.entries`, `fetch`,
+and `<object type="application/pdf" />` elements, you're out of luck. (Maybe upgrade your browser?)
+Anyway, consider the UI only as demonstrator for the API.
 
 ## History
 
@@ -368,11 +458,6 @@ itself, an keep track of rendering request in order to associate the PDF to the 
 texd on the other hand would need a priority queue (processing async documents only if no sync
 documents are enqueued), and it would need to store the callback URL somewhere.
 
----
-
-In local mode (maybe even in container mode), it would be nifty to have a web UI to test the
-document rendering.
-
 
 ## Contributing
 
@@ -386,4 +471,4 @@ please create a proposal (in form of an issue) first.
 
 ## License
 
-MIT, © 2022, Dominik Menke, see file [LICENSE][]
+MIT, © 2022, Dominik Menke, see file [LICENSE](./LICENSE)
