@@ -1,3 +1,4 @@
 dist/
 /texd
 /tmp
+coverage.*

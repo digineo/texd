@@ -7,44 +7,61 @@ LDFLAGS = -s -w \
           -X 'github.com/dmke/texd.builddate=$(shell date --iso-8601=seconds)'
 GOFLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
+## help (prints target names with trailing "## comment")
+
+PHONY: help
+help: ## print a short help message
+	@grep -hE '^[a-zA-Z_-]+:[^:]*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
+
 ## building
 
-build: $(TARGET)
+build: $(TARGET) ## build a development binary
 
 .PHONY: $(TARGET)
 $(TARGET):
 	go build -o $@ $(GOFLAGS) ./cmd/texd
 
 .PHONY: clean
-clean:
-	rm -rf tmp/ dist/ texd
+clean: ## cleanup build fragments
+	rm -rf tmp/ dist/ texd coverage.*
 
 
 ## development
 
+.PHONY: lint
+lint: ## runs golangci-lint on source files
+	golangci-lint run
+
 .PHONY: run-local
-run-local: tmp build
+run-local: tmp build ## builds and runs texd in local mode
 	./$(TARGET) -D ./tmp
 
 .PHONY: run-container
-run-container: tmp build
+run-container: tmp build ## builds and runs texd in container mode
 	./$(TARGET) -D ./tmp texlive/texlive:latest
 
 
 ## testing
 
+.PHONY: coverage.out
+coverage.out:
+	go test -race -covermode=atomic -coverprofile=$@ ./...
+
+coverage.html: coverage.out
+	go tool cover -html $< -o $@
+
 .PHONY: test
-test:
-	go test -race ./...
+test: coverage.out ## runs tests
 
 .PHONY: test-simple
-test-simple: tmp
+test-simple: tmp ## sends a simple document to a running instance
 	curl http://localhost:2201/render \
 		-F "input.tex=<testdata/simple/input.tex" \
 		-s -o tmp/$@-$$(date +%F_%T)-$$$$
 
 .PHONY: test-multi
-test-multi: tmp
+test-multi: tmp ## sends a more complex document to a running instance
 	curl http://localhost:2201/render \
 		-F "input.tex=<testdata/multi/input.tex" \
 		-s -F "doc.tex=<testdata/multi/doc.tex" \
@@ -52,15 +69,15 @@ test-multi: tmp
 		-o tmp/$@-$$(date +%F_%T)-$$$$
 
 .PHONY: test-missing
-test-missing: tmp
+test-missing: tmp ## send a broken document to a running instance
 	curl 'http://localhost:2201/render?errors=condensed' \
 		-F "input.tex=<testdata/missing/input.tex" \
 		-s -o tmp/$@-$$(date +%F_%T)-$$$$
 
 .PHONY: test-load
-test-load: tmp
+test-load: tmp ## sends 200 documents to a running instance
 	for i in $$(seq 1 100); do \
-		$(MAKE) test-missing & \
+		$(MAKE) -j2 test-multi test-missing & \
 	done
 
 ## misc
