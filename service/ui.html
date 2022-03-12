@@ -11,179 +11,218 @@
   <script src="/assets/texd.js"></script>
 </head>
 
-<body class="d-flex flex-column vh-100">
-  <div id="app" class="container-fluid flex-grow-1 py-3">
-    <form class="row align-items-stretch h-100" @submit.prevent="onSubmit">
-      <div class="col-md-5">
-        <div v-for="f in files" :key="f.id" class="card mb-3">
-          <div class="card-header d-flex">
-            <input
-                type="radio"
-                v-model="main"
-                :value="f.id"
-                class="me-3"
-            >
-            <div class="position-relative flex-grow-1">
+<body>
+  <div id="app" class="d-flex flex-column vh-100">
+    <nav class="navbar navbar-light bg-light">
+      <div class="container-fluid">
+        <a href="/" class="navbar-brand me-auto">texd {{ version }}</a>
+
+        <div class="d-flex flex-column">
+          <span>Queue: {{ queue[0] }}/{{ queue[1] }}</span>
+          <div class="progress" style="height: 2px">
+            <div class="progress-bar" :style="{ width: `${queue[0]/queue[1]*100}%` }"></div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 py-3">
+      <form class="row align-items-stretch h-100" @submit.prevent="onSubmit">
+        <div class="col-md-5">
+          <div
+              v-for="f in files" :key="f.id"
+              class="card mb-3"
+              :class="{ 'border-primary': f.id === main }"
+          >
+            <div class="card-header d-flex">
               <input
-                  v-if="f.type === 'text'"
-                  v-model="f.name"
-                  type="text"
-                  placeholder="Filename including extension"
-                  class="form-control form-control-sm"
-                  :class="{ 'is-invalid': !f.name || fileNames[f.name] > 1 }"
+                  type="radio"
+                  v-model="main"
+                  :value="f.id"
+                  class="me-3"
+                  title="main input file"
               >
-              <input
-                  v-if="f.type === 'file'"
-                  type="file"
-                  :placeholder="f.name || 'Select file'"
-                  class="form-control form-control-sm"
-                  :class="{ 'is-invalid': !f.name || fileNames[f.name] > 1 }"
-                  @change="onFileChange(f, $event)"
-              >
-              <div v-if="!f.name" class="invalid-tooltip">
-                missing name
+              <div class="position-relative flex-grow-1">
+                <input
+                    v-if="f.type === 'text'"
+                    v-model="f.name"
+                    type="text"
+                    placeholder="Filename including extension"
+                    class="form-control form-control-sm"
+                    :class="{ 'is-invalid': !f.name || fileNames[f.name] > 1 }"
+                >
+                <input
+                    v-if="f.type === 'file'"
+                    type="file"
+                    :placeholder="f.name || 'Select file'"
+                    class="form-control form-control-sm"
+                    :class="{ 'is-invalid': !f.name || fileNames[f.name] > 1 }"
+                    @change="onFileChange(f, $event)"
+                >
+                <div v-if="!f.name" class="invalid-tooltip">
+                  missing name
+                </div>
+                <div v-if="fileNames[f.name] > 1" class="invalid-tooltip">
+                  duplicate name
+                </div>
               </div>
-              <div v-if="fileNames[f.name] > 1" class="invalid-tooltip">
-                duplicate name
+
+              <button
+                  type="button"
+                  class="btn btn-sm ms-3 btn-outline-danger"
+                  @click.prevent="removeFile(f)"
+              >
+                remove
+              </button>
+            </div>
+
+            <div class="card-body" v-if="f.type === 'text'">
+              <textarea
+                  v-model="f.content"
+                  class="form-control"
+                  rows="10"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                @click.prevent="newTextfile"
+            >add text editor</button>
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary ms-1"
+                @click.prevent="newFileinput"
+            >attach file</button>
+          </div>
+
+          <details class="card mb-3">
+            <summary class="card-header">Options</summary>
+
+            <div class="card-body">
+              <div v-if="images.length" class="row mb-1">
+                <label for="image" class="col-form-label col-form-label-sm col-sm-4">
+                  TeX image
+                </label>
+                <div class="col-sm-8">
+                  <select id="image" v-model="image" class="form-select form-select-sm">
+                    <option v-for="val in images" :key="val" :value="val" v-text="val"></option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row mb-1">
+                <label for="engine" class="col-form-label col-form-label-sm col-sm-4">
+                  TeX engine
+                </label>
+                <div class="col-sm-8">
+                  <select id="engine" v-model="engine" class="form-select form-select-sm">
+                    <option v-for="val in engines" :key="val" :value="val" v-text="val"></option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row mb-1">
+                <label for="errors" class="col-form-label col-form-label-sm col-sm-4">
+                  show errors
+                </label>
+                <div class="col-sm-8">
+                  <select id="errors" v-model="errors" class="form-select form-select-sm">
+                    <option value="full">full log</option>
+                    <option value="condensed">condensed log</option>
+                    <option value="">JSON status</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <label for="main" class="col-form-label col-form-label-sm col-sm-4">
+                  main input file
+                </label>
+                <div class="col-sm-8">
+                  <select id="main" v-model="main" class="form-select form-select-sm">
+                    <option :value="null">let texd guess</option>
+                    <option
+                        v-for="f in files" :key="f.id"
+                        :value="f.id"
+                        v-text="f.name || '(no name)'"
+                    ></option>
+                  </select>
+                </div>
               </div>
             </div>
+          </details>
+
+          <div class="d-flex justify-content-end">
+            <button
+                type="reset"
+                class="btn btn-sm btn-outline-secondary me-1"
+                @click.prevent="onReset"
+            >Clear form</button>
 
             <button
-                class="btn btn-sm ms-3 btn-outline-danger"
-                @click.prevent="removeFile(f)"
-            >
-              remove
-            </button>
-          </div>
-
-          <div class="card-body" v-if="f.type === 'text'">
-            <textarea
-                v-model="f.content"
-                class="form-control"
-                rows="10"
-            ></textarea>
+                type="submit"
+                class="btn btn-sm btn-success"
+            >Render document</button>
           </div>
         </div>
 
-        <div class="mb-3">
-          <button
-              class="btn btn-sm btn-outline-secondary"
-              @click.prevent="newTextfile"
-          >add text editor</button>
-          <button
-              class="btn btn-sm btn-outline-secondary ms-1"
-              @click.prevent="newFileinput"
-          >attach file</button>
-        </div>
+        <div class="col-md-7">
+          <div v-if="result === null" class="d-flex text-center align-items-center justify-content-center h-100">
+            <em v-if="rendering" class="text-muted">
+              Rendering&hellip;
+            </em>
+            <em v-else class="text-muted">
+              Nothing to display.<br>
+              Add some files and hit render.
+            </em>
+          </div>
 
-        <details class="card mb-3">
-          <summary class="card-header">Options</summary>
+          <div
+              v-else-if="result.type === 'error'"
+              class="alert alert-danger alert-dismissible"
+          >
+            {{ result.message }}
 
-          <div class="card-body">
-            <div class="row mb-1">
-              <label for="engine" class="col-form-label col-form-label-sm col-sm-4">
-                TeX engine
-              </label>
-              <div class="col-sm-8">
-                <select id="engine" v-model="engine" class="form-select form-select-sm">
-                  <option value="xelatex">xelatex</option>
-                  <option value="pdflatex">pdflatex</option>
-                  <option value="lualatex">lualatex</option>
-                </select>
-              </div>
+            <div class="small mt-3">
+              Status: {{ result.status || 'unknown' }},
+              Content-Type: {{ result.ct || 'unknown' }}
             </div>
 
-            <div class="row mb-1">
-              <label for="errors" class="col-form-label col-form-label-sm col-sm-4">
-                show errors
-              </label>
-              <div class="col-sm-8">
-                <select id="errors" v-model="errors" class="form-select form-select-sm">
-                  <option value="full">full log</option>
-                  <option value="condensed">condensed log</option>
-                  <option value="">JSON status</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="row">
-              <label for="main" class="col-form-label col-form-label-sm col-sm-4">
-                main input file
-              </label>
-              <div class="col-sm-8">
-                <select id="main" v-model="main" class="form-select form-select-sm">
-                  <option
-                      v-for="f in files" :key="f.id"
-                      :value="f.id"
-                      v-text="f.name || '(no name)'"
-                  ></option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </details>
-
-        <div class="d-flex justify-content-end">
-          <button
-              class="btn btn-sm btn-success"
-              @click.prevent="onSubmit"
-          >Render document</button>
-        </div>
-      </div>
-
-      <div class="col-md-7">
-        <div v-if="result === null" class="d-flex text-center align-items-center justify-content-center h-100">
-          <em v-if="rendering" class="text-muted">
-            Rendering&hellip;
-          </em>
-          <em v-else class="text-muted">
-            Nothing to display.<br>
-            Add some files and hit render.
-          </em>
-        </div>
-
-        <div
-            v-else-if="result.type === 'error'"
-            class="alert alert-danger alert-dismissible"
-        >
-          {{ result.message }}
-
-          <div class="small mt-3">
-            Status: {{ result.status || 'unknown' }},
-            Content-Type: {{ result.ct || 'unknown' }}
-          </div>
-
-          <button class="btn-close" @click="result = null"></button>
-        </div>
-
-        <template v-else-if="result.type === 'log'">
-          <div class="alert alert-warning alert-dismissible">
-            Compilation failed
             <button class="btn-close" @click="result = null"></button>
           </div>
 
-          <h3>Logs</h3>
-          <pre class="border" v-text="result.data"></pre>
-        </template>
+          <template v-else-if="result.type === 'log'">
+            <div class="alert alert-warning alert-dismissible">
+              Compilation failed
+              <button class="btn-close" @click="result = null"></button>
+            </div>
 
-        <template v-else-if="result.type === 'status'">
-          <div class="alert alert-warning alert-dismissible">
-            Compilation failed
-            <button class="btn-close" @click="result = null"></button>
-          </div>
+            <h3>Logs</h3>
+            <pre class="border" v-text="result.data"></pre>
+          </template>
 
-          <h3>Status</h3>
-          <div class="border">{{ result.data }}</div>
-        </template>
+          <template v-else-if="result.type === 'status'">
+            <div class="alert alert-warning alert-dismissible">
+              Compilation failed
+              <button class="btn-close" @click="result = null"></button>
+            </div>
 
-        <object
-            v-else-if="result.type === 'pdf'"
-            :data="result.data"
-            type="application/pdf"
-            class="h-100"
-        />
-      </div>
-    </form>
+            <h3>Status</h3>
+            <div class="border">{{ result.data }}</div>
+          </template>
+
+          <object
+              v-else-if="result.type === 'pdf'"
+              :data="result.data"
+              type="application/pdf"
+              class="h-100 w-100"
+          />
+        </div>
+      </form>
+    </div>
   </div>
 </body>
 </html>
