@@ -29,8 +29,10 @@ func (svc *service) HandleRender(res http.ResponseWriter, req *http.Request) {
 }
 
 func (svc *service) render(res http.ResponseWriter, req *http.Request) error { //nolint:funlen
-	var err error
-	req.ParseMultipartForm(5 << 20)
+	err := req.ParseMultipartForm(5 << 20)
+	if err != nil {
+		return tex.InputError("parsing form data failed", err, nil)
+	}
 	params := req.URL.Query()
 
 	image, err := svc.validateImageParam(params.Get("image"))
@@ -57,7 +59,7 @@ func (svc *service) render(res http.ResponseWriter, req *http.Request) error { /
 		}
 	}()
 
-	if err := doc.AddFiles(req.PostForm); err != nil {
+	if err := doc.AddFiles(req); err != nil {
 		log.Printf("adding files failed: %v", err)
 		return err
 	}

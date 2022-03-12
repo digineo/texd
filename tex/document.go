@@ -1,8 +1,9 @@
 package tex
 
 import (
+	"bytes"
 	"io"
-	"net/url"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -46,7 +47,7 @@ func (f *File) hasTexdMark() bool      { return f.flags&flagTexdMark > 0 }
 type Document interface {
 	WorkingDirectory() (string, error)
 	AddFile(name, contents string) error
-	AddFiles(url.Values) error
+	AddFiles(req *http.Request) error
 	Cleanup() error
 	Image() string
 	Engine() Engine
@@ -179,9 +180,33 @@ func (doc *document) AddFile(name, contents string) (err error) {
 	return nil
 }
 
-func (doc *document) AddFiles(vs url.Values) error {
-	for name, contents := range vs {
-		// AddFile() will only accept one boby per file name and construct
+func (doc *document) AddFiles(req *http.Request) error {
+	if mf := req.MultipartForm; mf != nil {
+		defer mf.RemoveAll()
+
+		var buf bytes.Buffer
+		for name, files := range mf.File {
+			for _, f := range files {
+				rc, err := f.Open()
+				if err != nil {
+					return InputError("unable to open file", err, KV{"name": name})
+				}
+				defer rc.Close()
+
+				buf.Reset()
+				if _, err = io.Copy(&buf, rc); err != nil {
+					return InputError("failed to read file", err, KV{"name": name})
+				}
+
+				if err := doc.AddFile(name, buf.String()); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	for name, contents := range req.PostForm {
+		// AddFile() will only accept one body per file name and construct
 		// a proper error message. No need to perform something akin to
 		// `AddFile(contents[0]) if len(contents) == 1` here.
 		for _, content := range contents {
