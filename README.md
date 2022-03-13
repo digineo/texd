@@ -496,7 +496,7 @@ Of course, this project was not created in a void, other solutions exist as well
 
 [latexmk-gh]: https://github.com/davidcarlisle/latexcgi
 [latexmk-web]: https://davidcarlisle.github.io/latexcgi/
-[overleaf=gh]: https://github.com/overleaf/overleaf
+[overleaf-gh]: https://github.com/overleaf/overleaf
 [overleaf-web]: https://www.overleaf.com
 [clsi-gh]: https://github.com/overleaf/overleaf/tree/main/services/clsi
 
