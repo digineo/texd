@@ -78,14 +78,14 @@ viable alternative to the local mode. In fact, this mode is functionally equival
 To run texd as Docker service, use this command:
 
 ```console
-$ docker run --rm -t -p localhost:2201:2201 digineogmbh/texd:latest
+$ docker run --rm -t -p localhost:2201:2201 digineode/texd:latest
 ```
 
 When using Gitlab CI, you can add this line to your `.gitlab-ci.yml`:
 
 ```yml
 services:
-  - name: digineogmbh/texd:latest
+  - name: digineode/texd:latest
     alias: texd
 
 variables:
@@ -103,7 +103,7 @@ Calling texd with options works in any mode; these commands are equivalent:
 ```console
 $ texd -h
 $ texd texlive/texlive:latest -h
-$ docker run --rm -t digineogmbh/texd:latest -h
+$ docker run --rm -t digineode/texd:latest -h
 ```
 
 - `--help`, `-h`
