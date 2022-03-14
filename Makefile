@@ -103,7 +103,8 @@ docker-latest: build ## builds a Docker container with the latest binary
 		--label=org.opencontainers.image.revision=$(shell git show -s --format=%H HEAD) \
 		--label=org.opencontainers.image.version=$(VERSION) \
 		--platform=linux/amd64 \
-		-t digineode/texd:latest
+		-t digineode/texd:latest \
+		.
 
 .PHONY: bump bump-major bump-minor bump-patch
 bump: bump-patch ## bump version
