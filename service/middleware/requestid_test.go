@@ -1,4 +1,4 @@
-package requestid
+package middleware
 
 import (
 	"net/http"
@@ -26,7 +26,7 @@ func TestMiddleware(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	Middleware(http.HandlerFunc(captureContextID)).ServeHTTP(w,
+	RequestID(http.HandlerFunc(captureContextID)).ServeHTTP(w,
 		httptest.NewRequest(http.MethodGet, "/", nil))
 	assert.Equal(t, http.StatusOK, w.Code)
 

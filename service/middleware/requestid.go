@@ -1,4 +1,4 @@
-package requestid
+package middleware
 
 import (
 	"context"
@@ -13,7 +13,7 @@ type contextKey string
 
 const ContextKey = contextKey("request-id")
 
-func Middleware(next http.Handler) http.Handler {
+func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := uuid.Must(uuid.NewRandom()).String()
 		r = r.WithContext(context.WithValue(r.Context(), ContextKey, id))
@@ -21,4 +21,9 @@ func Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func GetRequestID(r *http.Request) (string, bool) {
+	id, ok := r.Context().Value(ContextKey).(string)
+	return id, ok
 }

@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/digineo/texd/exec"
-	"github.com/digineo/texd/requestid"
+	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -62,12 +61,14 @@ func Start(opts Options) func(context.Context) error {
 	r.HandleFunc("/metrics", svc.HandleMetrics).Methods(http.MethodGet)
 
 	// r.Use(handlers.RecoveryHandler())
-	r.Use(requestid.Middleware)
+	r.Use(middleware.RequestID)
 	r.Use(handlers.CompressHandler)
+	r.Use(middleware.Logging)
+	r.Use(middleware.CleanMultipart)
 
 	srv := http.Server{
 		Addr:    opts.Addr,
-		Handler: handlers.CombinedLoggingHandler(os.Stdout, r),
+		Handler: r,
 	}
 
 	go func() {
