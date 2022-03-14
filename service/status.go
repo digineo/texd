@@ -36,5 +36,5 @@ func (svc *service) HandleStatus(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", mimeTypeJSON)
 	res.Header().Set("X-Content-Type-Options", "nosniff")
 	res.WriteHeader(http.StatusOK)
-	json.NewEncoder(res).Encode(&status)
+	_ = json.NewEncoder(res).Encode(&status)
 }

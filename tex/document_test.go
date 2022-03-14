@@ -179,7 +179,7 @@ func TestDocument(t *testing.T) {
 	require.Len(subject.files, 4) // no change
 
 	// remove all files
-	subject.Cleanup()
+	require.NoError(subject.Cleanup())
 	require.False(subject.exists("chapter/bar.tex"))
 	require.False(subject.exists("chapter"))
 	require.False(subject.exists("foo.tex"))

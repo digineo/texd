@@ -95,7 +95,7 @@ func cmdBump(args []string) {
 	major := fs.BoolP("major", "M", false, "bump major version, reset minor and patch")
 	minor := fs.BoolP("minor", "m", false, "bump minor version, reset patch version")
 	_ /**/ = fs.BoolP("patch", "p", true, "bump only patch version") // just for the help message
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	var buf bytes.Buffer
 	if err := exec(nil, &buf, "git", "describe", "--tags", "--always", "--dirty"); err != nil {

@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/digineo/texd"
@@ -90,7 +91,7 @@ type stopFun func(context.Context) error
 
 func onExit(stopper ...stopFun) {
 	exitCh := make(chan os.Signal, 2)
-	signal.Notify(exitCh, os.Interrupt, os.Kill)
+	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
 	log.Printf("received signal %s, performing shutdown (max. %s, press Ctrl+C to exit now)",
 		sig, exitTimeout)

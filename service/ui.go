@@ -18,7 +18,7 @@ func HandleUI(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", mimeTypeHTML)
 	res.Header().Set("X-Content-Type-Options", "nosniff")
 	res.WriteHeader(http.StatusOK)
-	buf.WriteTo(res)
+	_, _ = buf.WriteTo(res)
 }
 
 func HandleAssets() http.Handler {

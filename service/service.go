@@ -101,9 +101,9 @@ func errorResponse(res http.ResponseWriter, err error) {
 	res.WriteHeader(http.StatusUnprocessableEntity)
 
 	if cat, ok := err.(*tex.ErrWithCategory); ok {
-		json.NewEncoder(res).Encode(cat)
+		_ = json.NewEncoder(res).Encode(cat)
 	} else {
-		json.NewEncoder(res).Encode(map[string]string{
+		_ = json.NewEncoder(res).Encode(map[string]string{
 			"error":    "internal server error",
 			"category": "internal",
 		})

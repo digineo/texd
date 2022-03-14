@@ -12,7 +12,6 @@ type Exec interface {
 
 type baseExec struct {
 	doc tex.Document
-	cmd []string
 }
 
 func (x *baseExec) extract() (dir string, cmd []string, err error) {

@@ -150,7 +150,7 @@ func (doc *document) AddFile(name, contents string) (err error) {
 	}
 
 	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if osErr != nil {
 		err = InputError("cannot create file", osErr, nil)
 		return
@@ -182,7 +182,7 @@ func (doc *document) AddFile(name, contents string) (err error) {
 
 func (doc *document) AddFiles(req *http.Request) error {
 	if mf := req.MultipartForm; mf != nil {
-		defer mf.RemoveAll()
+		defer func() { _ = mf.RemoveAll() }()
 
 		var buf bytes.Buffer
 		for name, files := range mf.File {

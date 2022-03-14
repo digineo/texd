@@ -134,7 +134,7 @@ func (dc *DockerClient) pull(ctx context.Context, tag string, p *progess) error 
 	}
 	defer r.Close()
 
-	p.report(r)
+	_ = p.report(r)
 	return err
 }
 
