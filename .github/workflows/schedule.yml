@@ -12,9 +12,6 @@ jobs:
   # Push digineode/texd:latest from master
   latest:
     runs-on: ubuntu-latest
-    env:
-      CGO_ENABLED: 0
-
     strategy:
       matrix:
         go-version: [1.x]
@@ -58,9 +55,6 @@ jobs:
   # Push digineode/texd:vX from latest tag
   major:
     runs-on: ubuntu-latest
-    env:
-      CGO_ENABLED: 0
-
     strategy:
       matrix:
         go-version: [1.x]
