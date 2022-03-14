@@ -1,4 +1,4 @@
-name: Release
+name: Test, Lint, Release
 
 on:
   push:
@@ -108,10 +108,7 @@ jobs:
       # For untagged commits to master, first build packages...
       - if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         name: Build digineode/texd:latest
-        uses: goreleaser/goreleaser-action@v2
-        with:
-          version: latest
-          args: release --rm-dist --skip-publish
+        run: make docker-latest
 
       # ...and push *only* the latest Docker image.
       - if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'

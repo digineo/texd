@@ -1,10 +1,15 @@
 MAKEFLAGS += --no-print-directory
 
-TARGET  = texd
+TARGET = texd
+
+VERSION     = $(shell git describe --tags --always --dirty)
+COMMIT_DATE = $(shell git show -s --format=%cI HEAD)
+BUILD_DATE  = $(shell date --iso-8601=seconds)
+
 LDFLAGS = -s -w \
-          -X 'github.com/digineo/texd.version=$(shell git describe --tags --always --dirty)' \
-          -X 'github.com/digineo/texd.commitdate=$(shell git show -s --format=%cI HEAD)' \
-          -X 'github.com/digineo/texd.builddate=$(shell date --iso-8601=seconds)'
+          -X 'github.com/digineo/texd.version=$(VERSION)' \
+          -X 'github.com/digineo/texd.commitdate=$(COMMIT_DATE)' \
+          -X 'github.com/digineo/texd.builddate=$(BUILD_DATE)'
 GOFLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
 ## help (prints target names with trailing "## comment")
@@ -90,6 +95,15 @@ release-test: ## runs goreleaser, but skips publishing
 release-publish: ## runs goreleaser and publishes artifacts
 	goreleaser release --rm-dist
 
+.PHONY: docker-latest
+docker-latest: build ## builds a Docker container with the latest binary
+	docker build --pull \
+		--label=org.opencontainers.image.created=$(BUILD_DATE) \
+		--label=org.opencontainers.image.title=$(TARGET) \
+		--label=org.opencontainers.image.revision=$(shell git show -s --format=%H HEAD) \
+		--label=org.opencontainers.image.version=$(VERSION) \
+		--platform=linux/amd64 \
+		-t digineode/texd:latest
 
 .PHONY: bump bump-major bump-minor bump-patch
 bump: bump-patch ## bump version
