@@ -1,0 +1,119 @@
+name: Schedule
+
+on:
+  schedule:
+    # texlive/texlive:base has weekly scheduled updates, see
+    # https://gitlab.com/islandoftex/images/texlive/-/pipeline_schedules
+    # They seem to run Mondays at 5am and take around 2-4h to complete.
+    # Let's rebuild our latest and vX Docker tag on a Tuesday.
+    - cron: '0 8 * * 2'
+
+jobs:
+  # Push digineode/texd:latest from master
+  latest:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+
+    strategy:
+      matrix:
+        go-version: [1.x]
+
+    steps:
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          branch: master
+
+      - name: Cache Go modules
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-${{ matrix.go-version }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.go-version }}-go-
+
+      # Create packages, but skip publishing. We're only interested
+      # in the Docker images.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --rm-dist --skip-publish
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push latest Docker image
+        run: docker push digineode/texd:latest
+
+  # Push digineode/texd:vX from latest tag
+  major:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+
+    strategy:
+      matrix:
+        go-version: [1.x]
+
+    steps:
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Find latest tag
+        uses: oprypin/find-latest-tag@v1
+        with:
+          repository: digineo/texd
+          releases-only: true
+        id: latest-tag
+
+      - name: Extract major version
+        uses: actions/github-script@v2
+        with:
+          script: |
+            const tag = '${{ steps.latest-tag.outputs.tag }}'
+            const major = tag.split('.', 2)[0]
+            return major.startsWith('v') ? major : "v" + major
+          result-encoding: string
+        id: major-version
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ steps.latest-tag.outputs.tag }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-${{ matrix.go-version }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.go-version }}-go-
+
+      # Create packages, but skip publishing. We're only interested
+      # in the Docker images.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --rm-dist --skip-publish
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push latest Docker image
+        run: docker push digineode/texd:${{ steps.major-version.outputs.result }}
