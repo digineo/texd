@@ -1,6 +1,6 @@
 [Unit]
 Description=texd - TeX web service
-Documentation=https://github.com/dmke/texd
+Documentation=https://github.com/digineo/texd
 After=network.target
 
 [Service]

@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/dmke/texd/exec"
-	"github.com/dmke/texd/requestid"
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/requestid"
+	"github.com/digineo/texd/tex"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )

@@ -1,4 +1,4 @@
-module github.com/dmke/texd
+module github.com/digineo/texd
 
 go 1.17
 

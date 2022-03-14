@@ -2,9 +2,9 @@ MAKEFLAGS += --no-print-directory
 
 TARGET  = texd
 LDFLAGS = -s -w \
-          -X 'github.com/dmke/texd.version=$(shell git describe --tags --always --dirty)' \
-          -X 'github.com/dmke/texd.commitdate=$(shell git show -s --format=%cI HEAD)' \
-          -X 'github.com/dmke/texd.builddate=$(shell date --iso-8601=seconds)'
+          -X 'github.com/digineo/texd.version=$(shell git describe --tags --always --dirty)' \
+          -X 'github.com/digineo/texd.commitdate=$(shell git show -s --format=%cI HEAD)' \
+          -X 'github.com/digineo/texd.builddate=$(shell date --iso-8601=seconds)'
 GOFLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
 ## help (prints target names with trailing "## comment")

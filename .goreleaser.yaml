@@ -8,10 +8,10 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/dmke/texd.version={{ .Version }}
-      - -X github.com/dmke/texd.commit={{ .Commit }}
-      - -X github.com/dmke/texd.commitat={{ .CommitDate }}
-      - -X github.com/dmke/texd.buildat={{ .Date }}
+      - -X github.com/digineo/texd.version={{ .Version }}
+      - -X github.com/digineo/texd.commit={{ .Commit }}
+      - -X github.com/digineo/texd.commitat={{ .CommitDate }}
+      - -X github.com/digineo/texd.buildat={{ .Date }}
     env:
       - CGO_ENABLED=0
     goos:
@@ -27,8 +27,8 @@ archives:
 nfpms:
   - package_name: texd
     vendor: Dominik Menke
-    homepage: https://github.com/dmke/texd
-    maintainer: Dominik Menke <git@dmke.org>
+    homepage: https://github.com/digineo/texd
+    maintainer: Dominik Menke <dom@digineo.de>
     description: |-
       texd wraps a local TeX installion into a web service.
       Alternatively, texd executes each compilation job in an isolated
@@ -52,9 +52,9 @@ dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - dmke/texd:latest
-      - dmke/texd:{{ .Tag }}
-      - dmke/texd:v{{ .Major }}
+      - digineogmbh/texd:latest
+      - digineogmbh/texd:{{ .Tag }}
+      - digineogmbh/texd:v{{ .Major }}
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{ .Date }}"

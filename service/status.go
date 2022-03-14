@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dmke/texd"
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd"
+	"github.com/digineo/texd/tex"
 )
 
 type Status struct {

@@ -5,7 +5,7 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd/tex"
 )
 
 type localExec struct {

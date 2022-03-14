@@ -3,7 +3,7 @@ package exec
 import (
 	"context"
 
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd/tex"
 )
 
 type Exec interface {

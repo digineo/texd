@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd/tex"
 )
 
 func (svc *service) acquire(ctx context.Context) error {

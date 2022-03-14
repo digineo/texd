@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmke/texd"
-	"github.com/dmke/texd/exec"
-	"github.com/dmke/texd/service"
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd"
+	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/service"
+	"github.com/digineo/texd/tex"
 	flag "github.com/spf13/pflag"
 )
 

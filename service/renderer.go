@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dmke/texd/tex"
+	"github.com/digineo/texd/tex"
 )
 
 func (svc *service) Close() {
