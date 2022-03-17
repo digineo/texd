@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,7 +18,7 @@ import (
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -32,52 +34,60 @@ var opts = service.Options{
 }
 
 var (
-	engine     = tex.DefaultEngine.Name()
-	jobdir     = ""
-	pull       = false
-	logLevel   = zapcore.InfoLevel.String()
-	maxJobSize = units.BytesSize(float64(opts.MaxJobSize))
+	engine      = tex.DefaultEngine.Name()
+	jobdir      = ""
+	pull        = false
+	logLevel    = zapcore.InfoLevel.String()
+	maxJobSize  = units.BytesSize(float64(opts.MaxJobSize))
+	showVersion = false
 )
 
-var log = zap.L()
-
-func main() { //nolint:funlen
-	texd.PrintBanner(os.Stdout)
-
-	flag.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
-		"bind `address` for the HTTP API")
-	flag.StringVarP(&engine, "tex-engine", "X", engine,
-		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
-	flag.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
-		"maximum rendering time")
-	flag.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
-		"maximum `number` of parallel rendereing jobs")
-	flag.StringVar(&maxJobSize, "max-job-size", maxJobSize,
-		"maximum size of job, a value <= 0 disables check")
-	flag.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
-		"maximum wait time in full rendering queue")
-	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
-		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
-	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
-	flag.StringVar(&logLevel, "log-level", logLevel,
-		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
-	versionRequested := flag.BoolP("version", "v", false, `print version information and exit`)
-	flag.Parse()
-
-	if *versionRequested {
-		printVersion()
-		os.Exit(0)
+func parseFlags() {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fs.PrintDefaults()
 	}
 
-	if lvl, err := zapcore.ParseLevel(logLevel); err != nil {
-		zap.L().Fatal("error parsing log level",
-			zap.String("flag", "--log-level"),
-			zap.Error(err))
-	} else if log, err = newLogger(lvl); err != nil {
-		zap.L().Fatal("error constructing logger",
-			zap.Error(err))
-	} else {
-		defer func() { _ = log.Sync() }()
+	fs.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
+		"bind `address` for the HTTP API")
+	fs.StringVarP(&engine, "tex-engine", "X", engine,
+		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
+	fs.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
+		"maximum rendering time")
+	fs.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
+		"maximum `number` of parallel rendereing jobs")
+	fs.StringVar(&maxJobSize, "max-job-size", maxJobSize,
+		"maximum size of job, a value <= 0 disables check")
+	fs.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
+		"maximum wait time in full rendering queue")
+	fs.StringVarP(&jobdir, "job-directory", "D", jobdir,
+		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
+	fs.BoolVar(&pull, "pull", pull, "always pull Docker images")
+	fs.StringVar(&logLevel, "log-level", logLevel,
+		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
+	fs.BoolVarP(&showVersion, "version", "v", showVersion,
+		`print version information and exit`)
+
+	switch err := fs.Parse(os.Args[1:]); {
+	case errors.Is(err, pflag.ErrHelp):
+		// pflag already has called fs.Usage
+		os.Exit(0)
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "Error parsing flags:\n\t%v\n", err)
+		os.Exit(2)
+	}
+}
+
+func main() {
+	texd.PrintBanner(os.Stdout)
+	parseFlags()
+	log, sync := setupLogger()
+	defer sync()
+
+	if showVersion {
+		printVersion()
+		os.Exit(0)
 	}
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
@@ -115,14 +125,14 @@ func main() { //nolint:funlen
 	}
 
 	stop := service.Start(opts, log)
-	onExit(stop)
+	onExit(log, stop)
 }
 
 const exitTimeout = 10 * time.Second
 
 type stopFun func(context.Context) error
 
-func onExit(stopper ...stopFun) {
+func onExit(log *zap.Logger, stopper ...stopFun) {
 	exitCh := make(chan os.Signal, 2)
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
@@ -182,7 +192,7 @@ func printVersion() {
 	}
 }
 
-func newLogger(level zapcore.Level) (*zap.Logger, error) {
+func setupLogger() (*zap.Logger, func()) {
 	var cfg zap.Config
 	if texd.Development() {
 		cfg = zap.NewDevelopmentConfig()
@@ -190,6 +200,26 @@ func newLogger(level zapcore.Level) (*zap.Logger, error) {
 		cfg = zap.NewProductionConfig()
 	}
 
-	cfg.Level = zap.NewAtomicLevelAt(level)
-	return cfg.Build()
+	lvl, lvlErr := zapcore.ParseLevel(logLevel)
+	if lvlErr == nil {
+		cfg.Level = zap.NewAtomicLevelAt(lvl)
+	}
+
+	log, err := cfg.Build()
+	if err != nil {
+		// we don't have a logger yet, so logging the error
+		// proves to be complicatet :)
+		panic(err)
+	}
+
+	if lvlErr != nil {
+		log.Error("error parsing log level",
+			zap.String("flag", "--log-level"),
+			zap.Error(lvlErr))
+	}
+
+	zap.ReplaceGlobals(log)
+	return log, func() {
+		_ = log.Sync()
+	}
 }

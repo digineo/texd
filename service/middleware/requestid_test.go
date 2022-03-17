@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +33,4 @@ func TestMiddleware(t *testing.T) {
 	require.NotEmpty(t, headerId)
 
 	assert.Equal(t, headerId, contextId)
-	id, err := uuid.Parse(headerId)
-	require.NoError(t, err)
-	assert.Equal(t, uuid.Version(4), id.Version())
 }
