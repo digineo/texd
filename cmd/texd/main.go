@@ -72,7 +72,7 @@ func main() { //nolint:funlen
 		zap.L().Fatal("error constructing logger",
 			zap.Error(err))
 	} else {
-		defer log.Sync()
+		defer func() { _ = log.Sync() }()
 	}
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
