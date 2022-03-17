@@ -15,6 +15,7 @@ import (
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
+	"github.com/docker/go-units"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -24,16 +25,18 @@ var opts = service.Options{
 	Addr:           ":2201",
 	QueueLength:    runtime.GOMAXPROCS(0),
 	QueueTimeout:   10 * time.Second,
+	MaxJobSize:     50 * units.MiB,
 	CompileTimeout: time.Minute,
 	Mode:           "local",
 	Executor:       exec.LocalExec,
 }
 
 var (
-	engine   = tex.DefaultEngine.Name()
-	jobdir   = ""
-	pull     = false
-	logLevel = zapcore.InfoLevel.String()
+	engine     = tex.DefaultEngine.Name()
+	jobdir     = ""
+	pull       = false
+	logLevel   = zapcore.InfoLevel.String()
+	maxJobSize = units.BytesSize(float64(opts.MaxJobSize))
 )
 
 var log = zap.L()
@@ -49,6 +52,8 @@ func main() { //nolint:funlen
 		"maximum rendering time")
 	flag.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
 		"maximum `number` of parallel rendereing jobs")
+	flag.StringVar(&maxJobSize, "max-job-size", maxJobSize,
+		"maximum size of job, a value <= 0 disables check")
 	flag.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
 		"maximum wait time in full rendering queue")
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
@@ -85,6 +90,14 @@ func main() { //nolint:funlen
 		log.Fatal("error setting default TeX engine",
 			zap.String("flag", "--tex-engine"),
 			zap.Error(err))
+	}
+
+	if max, err := units.FromHumanSize(maxJobSize); err != nil {
+		log.Fatal("error parsing maximum job size",
+			zap.String("flag", "--max-job-size"),
+			zap.Error(err))
+	} else {
+		opts.MaxJobSize = max
 	}
 
 	if images := flag.Args(); len(images) > 0 {

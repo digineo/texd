@@ -26,6 +26,7 @@ type Options struct {
 	Addr           string
 	QueueLength    int
 	QueueTimeout   time.Duration
+	MaxJobSize     int64 // number of bytes
 	Executor       func(tex.Document) exec.Exec
 	CompileTimeout time.Duration
 	Mode           string
@@ -40,6 +41,7 @@ type service struct {
 	executor       func(tex.Document) exec.Exec
 	compileTimeout time.Duration
 	queueTimeout   time.Duration
+	maxJobSize     int64 // number of bytes
 
 	log *zap.Logger
 }
@@ -51,6 +53,7 @@ func Start(opts Options, log *zap.Logger) func(context.Context) error {
 		executor:       opts.Executor,
 		compileTimeout: opts.CompileTimeout,
 		queueTimeout:   opts.QueueTimeout,
+		maxJobSize:     opts.MaxJobSize,
 		images:         opts.Images,
 		log:            log,
 	}
@@ -59,7 +62,12 @@ func Start(opts Options, log *zap.Logger) func(context.Context) error {
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
 
-	r.HandleFunc("/render", svc.HandleRender).Methods(http.MethodPost)
+	render := http.Handler(http.HandlerFunc(svc.HandleRender))
+	if max := svc.maxJobSize; max > 0 {
+		render = http.MaxBytesHandler(render, max)
+	}
+	r.Handle("/render", render).Methods(http.MethodPost)
+
 	r.HandleFunc("/status", svc.HandleStatus).Methods(http.MethodGet)
 	r.HandleFunc("/metrics", svc.HandleMetrics).Methods(http.MethodGet)
 
