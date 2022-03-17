@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
+	"go.uber.org/zap"
 )
 
 func (svc *service) Close() {
@@ -23,12 +25,13 @@ func (svc *service) HandleRender(res http.ResponseWriter, req *http.Request) {
 		req = req.WithContext(ctx)
 	}
 
-	if err := svc.render(res, req); err != nil {
-		errorResponse(res, err)
+	log := svc.Logger().With(middleware.RequestIDField(req.Context()))
+	if err := svc.render(log, res, req); err != nil {
+		errorResponse(log, res, err)
 	}
 }
 
-func (svc *service) render(res http.ResponseWriter, req *http.Request) error { //nolint:funlen
+func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.Request) error { //nolint:funlen
 	err := req.ParseMultipartForm(5 << 20)
 	if err != nil {
 		return tex.InputError("parsing form data failed", err, nil)
@@ -47,20 +50,20 @@ func (svc *service) render(res http.ResponseWriter, req *http.Request) error { /
 
 	// Add a new job to the queue and bail if we're over capacity.
 	if err = svc.acquire(req.Context()); err != nil {
-		log.Println(err)
+		log.Error("failed enter queue", zap.Error(err))
 		return err
 	}
 	defer svc.release()
 
-	doc := tex.NewDocument(engine, image)
+	doc := tex.NewDocument(log, engine, image)
 	defer func() {
 		if err := doc.Cleanup(); err != nil {
-			log.Printf("cleanup failed: %v", err)
+			log.Error("cleanup failed", zap.Error(err))
 		}
 	}()
 
 	if err := doc.AddFiles(req); err != nil {
-		log.Printf("adding files failed: %v", err)
+		log.Error("failed to add files: %v", zap.Error(err))
 		return err
 	}
 
@@ -68,34 +71,32 @@ func (svc *service) render(res http.ResponseWriter, req *http.Request) error { /
 	// included of multipart request body.
 	if input := params.Get("input"); input != "" {
 		if err := doc.SetMainInput(input); err != nil {
-			log.Printf("invalid main input file %q: %v", input, err)
+			log.Error("invalid main input file",
+				zap.String("filename", input),
+				zap.Error(err))
 			return err
 		}
 	}
 
 	// Check presence main input file. If not given, guess from file
 	// listing.
-	main, err := doc.MainInput()
-	if err != nil {
+	if _, err := doc.MainInput(); err != nil {
 		return err
 	}
-	log.Printf("using main input file: %q", main)
 
 	if err := req.Context().Err(); err != nil {
-		log.Printf("cancel render job, client is gone: %v", err)
+		log.Error("cancel render job, client is gone", zap.Error(err))
 		return err
 	}
 
-	if err := svc.executor(doc).Run(req.Context()); err != nil {
-		log.Printf("render job failed: %v", err)
-
+	if err := svc.executor(doc).Run(req.Context(), log); err != nil {
 		if format := params.Get("errors"); format != "" {
-			logs, lerr := doc.GetLogs()
+			logReader, lerr := doc.GetLogs()
 			if lerr != nil {
-				log.Printf("failed to get logs: %v", lerr)
+				log.Error("failed to get logs", zap.Error(lerr))
 				return err // not lerr, client gets error from executor.Run()
 			}
-			logfileResponse(res, format, logs)
+			logfileResponse(log, res, format, logReader)
 			return nil // header is already written
 		}
 
@@ -104,7 +105,7 @@ func (svc *service) render(res http.ResponseWriter, req *http.Request) error { /
 
 	pdf, err := doc.GetResult()
 	if err != nil {
-		log.Printf("failed to get result: %v", err)
+		log.Error("failed to get result", zap.Error(err))
 		return err
 	}
 	defer pdf.Close()
@@ -113,7 +114,7 @@ func (svc *service) render(res http.ResponseWriter, req *http.Request) error { /
 	res.Header().Set("Content-Type", mimeTypePDF)
 	res.WriteHeader(http.StatusOK)
 	if _, err = io.Copy(res, pdf); err != nil {
-		log.Printf("failed to send results: %v", err)
+		log.Error("failed to send results", zap.Error(err))
 	}
 	return nil // header is already written
 }
@@ -149,13 +150,13 @@ func (svc *service) validateEngineParam(name string) (engine tex.Engine, err err
 	return
 }
 
-func logfileResponse(res http.ResponseWriter, format string, logs io.ReadCloser) {
+func logfileResponse(log *zap.Logger, res http.ResponseWriter, format string, logs io.ReadCloser) {
 	res.Header().Set("Content-Type", mimeTypePlain)
 	res.WriteHeader(http.StatusUnprocessableEntity)
 
 	if format != "condensed" {
 		if _, err := io.Copy(res, logs); err != nil {
-			log.Printf("failed to send logs: %v", err)
+			log.Error("failed to send logs", zap.Error(err))
 		}
 		return
 	}
@@ -166,12 +167,12 @@ func logfileResponse(res http.ResponseWriter, format string, logs io.ReadCloser)
 			// drop error indicator and add line break
 			line = append(bytes.TrimLeft(line, "! "), '\n')
 			if _, err := res.Write(line); err != nil {
-				log.Printf("failed to send logs: %v", err)
+				log.Error("failed to send logs", zap.Error(err))
 				return
 			}
 		}
 	}
 	if err := s.Err(); err != nil {
-		log.Printf("failed to read logs: %v", err)
+		log.Error("failed to read logs", zap.Error(err))
 	}
 }

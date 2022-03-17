@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -17,6 +16,8 @@ import (
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	flag "github.com/spf13/pflag"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var opts = service.Options{
@@ -29,13 +30,15 @@ var opts = service.Options{
 }
 
 var (
-	engine = tex.DefaultEngine.Name()
-	jobdir = ""
-	pull   = false
+	engine   = tex.DefaultEngine.Name()
+	jobdir   = ""
+	pull     = false
+	logLevel = zapcore.InfoLevel.String()
 )
 
-func main() {
-	log.SetFlags(log.Lshortfile)
+var log = zap.L()
+
+func main() { //nolint:funlen
 	texd.PrintBanner(os.Stdout)
 
 	flag.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
@@ -51,6 +54,8 @@ func main() {
 	flag.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
 	flag.BoolVar(&pull, "pull", pull, "always pull Docker images")
+	flag.StringVar(&logLevel, "log-level", logLevel,
+		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
 	versionRequested := flag.BoolP("version", "v", false, `print version information and exit`)
 	flag.Parse()
 
@@ -59,29 +64,44 @@ func main() {
 		os.Exit(0)
 	}
 
+	if lvl, err := zapcore.ParseLevel(logLevel); err != nil {
+		zap.L().Fatal("error parsing log level",
+			zap.String("flag", "--log-level"),
+			zap.Error(err))
+	} else if log, err = newLogger(lvl); err != nil {
+		zap.L().Fatal("error constructing logger",
+			zap.Error(err))
+	} else {
+		defer log.Sync()
+	}
+
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
-		log.Fatalf("error parsing --job-directory: %v", err)
+		log.Fatal("error setting job directory",
+			zap.String("flag", "--job-directory"),
+			zap.Error(err))
 	}
 
 	if err := tex.SetDefaultEngine(engine); err != nil {
-		log.Fatalf("error parsing --tex-engine: %v", err)
+		log.Fatal("error setting default TeX engine",
+			zap.String("flag", "--tex-engine"),
+			zap.Error(err))
 	}
 
 	if images := flag.Args(); len(images) > 0 {
-		cli, err := exec.NewDockerClient()
+		cli, err := exec.NewDockerClient(log)
 		if err != nil {
-			log.Fatalf("error connecting to dockerd: %v", err)
+			log.Fatal("error connecting to dockerd", zap.Error(err))
 		}
 
 		opts.Images, err = cli.SetImages(context.Background(), pull, images...)
 		opts.Mode = "container"
 		if err != nil {
-			log.Fatalf("error setting images: %v", err)
+			log.Fatal("error setting images", zap.Error(err))
 		}
 		opts.Executor = cli.Executor
 	}
 
-	stop := service.Start(opts)
+	stop := service.Start(opts, log)
 	onExit(stop)
 }
 
@@ -93,17 +113,20 @@ func onExit(stopper ...stopFun) {
 	exitCh := make(chan os.Signal, 2)
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
-	log.Printf("received signal %s, performing shutdown (max. %s, press Ctrl+C to exit now)",
-		sig, exitTimeout)
+
+	log.Info("performing shutdown, press Ctrl+C to exit now",
+		zap.String("signal", sig.String()),
+		zap.Duration("graceful-wait-timeout", exitTimeout))
 
 	ctx, cancel := context.WithTimeout(context.Background(), exitTimeout)
+	defer cancel()
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(stopper))
 	for _, stop := range stopper {
 		go func(f stopFun) {
 			if err := f(ctx); err != nil {
-				log.Printf("error while shutting down: %v", err)
+				log.Error("error while shutting down", zap.Error(err))
 			}
 			wg.Done()
 		}(stop)
@@ -117,13 +140,12 @@ func onExit(stopper ...stopFun) {
 
 	select {
 	case <-exitCh:
-		log.Println("forcing exit")
+		log.Warn("forcing exit")
 	case <-doneCh:
-		log.Println("shutdown complete")
+		log.Info("shutdown complete")
 	case <-ctx.Done():
-		log.Println("shutdown incomplete, exiting anyway")
+		log.Warn("shutdown incomplete, exiting anyway")
 	}
-	cancel()
 }
 
 func printVersion() {
@@ -145,4 +167,16 @@ func printVersion() {
 			fmt.Printf(l, "  replaces", i.Path, i.Version)
 		}
 	}
+}
+
+func newLogger(level zapcore.Level) (*zap.Logger, error) {
+	var cfg zap.Config
+	if texd.Development() {
+		cfg = zap.NewDevelopmentConfig()
+	} else {
+		cfg = zap.NewProductionConfig()
+	}
+
+	cfg.Level = zap.NewAtomicLevelAt(level)
+	return cfg.Build()
 }

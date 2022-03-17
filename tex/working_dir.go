@@ -71,7 +71,7 @@ func SetJobBaseDir(dir string) error {
 	return nil
 }
 
-func stat_t(st os.FileInfo) *syscall.Stat_t {
+func underlyingStat(st os.FileInfo) *syscall.Stat_t {
 	switch typ := st.Sys().(type) {
 	case syscall.Stat_t:
 		return &typ
@@ -83,11 +83,11 @@ func stat_t(st os.FileInfo) *syscall.Stat_t {
 }
 
 func matchEGID(st os.FileInfo, egid int) bool {
-	sys := stat_t(st)
+	sys := underlyingStat(st)
 	return sys != nil && int(sys.Gid) == egid
 }
 
 func matchEUID(st os.FileInfo, euid int) bool {
-	sys := stat_t(st)
+	sys := underlyingStat(st)
 	return sys != nil && int(sys.Uid) == euid
 }

@@ -61,7 +61,7 @@ var LatexmkDefaultFlags = []string{
 	"-pv-", "-pvc-", // turn off (continuous) file previewing
 }
 
-// latexmk builds a command line for latexmk invocation.
+// LatexmkCmd builds a command line for latexmk invocation.
 func (engine Engine) LatexmkCmd(main string) []string {
 	lenDefaults := len(LatexmkDefaultFlags)
 	flags := engine.Flags()

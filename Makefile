@@ -5,12 +5,17 @@ TARGET = texd
 VERSION     = $(shell git describe --tags --always --dirty)
 COMMIT_DATE = $(shell git show -s --format=%cI HEAD)
 BUILD_DATE  = $(shell date --iso-8601=seconds)
+DEVELOPMENT = 1
 
 LDFLAGS = -s -w \
           -X 'github.com/digineo/texd.version=$(VERSION)' \
-          -X 'github.com/digineo/texd.commitdate=$(COMMIT_DATE)' \
-          -X 'github.com/digineo/texd.builddate=$(BUILD_DATE)'
+          -X 'github.com/digineo/texd.commitat=$(COMMIT_DATE)' \
+          -X 'github.com/digineo/texd.buildat=$(BUILD_DATE)' \
+          -X 'github.com/digineo/texd.isdev=$(DEVELOPMENT)'
 GOFLAGS = -trimpath -ldflags="$(LDFLAGS)"
+
+# passed to run-* targets
+RUN_ARGS = --job-directory ./tmp --log-level debug
 
 ## help (prints target names with trailing "## comment")
 
@@ -40,11 +45,11 @@ lint: ## runs golangci-lint on source files
 
 .PHONY: run-local
 run-local: tmp build ## builds and runs texd in local mode
-	./$(TARGET) -D ./tmp
+	./$(TARGET) $(RUN_ARGS)
 
 .PHONY: run-container
 run-container: tmp build ## builds and runs texd in container mode
-	./$(TARGET) -D ./tmp texlive/texlive:latest
+	./$(TARGET) $(RUN_ARGS) texlive/texlive:latest
 
 
 ## testing

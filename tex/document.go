@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/spf13/afero"
+	"go.uber.org/zap"
 )
 
 // Mark is used to help identifying the main input file from a list
@@ -64,24 +65,24 @@ type document struct {
 	files     map[string]*File
 	mainInput string // only present after SetMainInput(), otherwise ask MainInput()
 
+	log    *zap.Logger
 	image  string
 	engine Engine
 
 	mkWorkDir    *sync.Once
 	mkWorkDirErr error
-	*sync.RWMutex
 }
 
 var _ Document = (*document)(nil)
 
-func NewDocument(engine Engine, image string) Document {
+func NewDocument(log *zap.Logger, engine Engine, image string) Document {
 	return &document{
 		fs:        osfs,
 		files:     make(map[string]*File),
+		log:       log,
 		image:     image,
 		engine:    engine,
 		mkWorkDir: &sync.Once{},
-		RWMutex:   &sync.RWMutex{},
 	}
 }
 
@@ -102,6 +103,8 @@ func (doc *document) createWorkDir() {
 }
 
 func (doc *document) AddFile(name, contents string) (err error) {
+	log := doc.log.With(zap.String("filename", name))
+	log.Info("adding file")
 	file := &File{}
 
 	defer func() {
@@ -112,59 +115,32 @@ func (doc *document) AddFile(name, contents string) (err error) {
 			}
 			// cleanup file list
 			if file.name != "" {
-				doc.Lock()
 				delete(doc.files, file.name)
-				doc.Unlock()
 			}
 		}
 	}()
 
 	var ok bool
-	file.name, ok = cleanpath(name)
-	if !ok {
+	if file.name, ok = cleanpath(name); !ok {
 		err = InputError("invalid file name", nil, nil)
 		return
 	}
 
-	doc.Lock()
 	if _, exists := doc.files[name]; exists {
-		doc.Unlock()
 		err = InputError("duplicate file name", nil, nil)
 		return
 	} else {
 		doc.files[name] = file
-		doc.Unlock()
 	}
 
-	var wd string
-	wd, err = doc.WorkingDirectory()
-	if err != nil {
-		return // err is already an errWithCategory
-	}
-
-	if dir := path.Dir(name); dir != "" {
-		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), 0o700); osErr != nil {
-			err = InputError("cannot create directory", osErr, nil)
-			return
-		}
-	}
-
-	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	defer func() { _ = f.Close() }()
-	if osErr != nil {
-		err = InputError("cannot create file", osErr, nil)
-		return
-	}
-
-	_, osErr = f.Write([]byte(contents))
-	if osErr != nil {
-		err = InputError("cannot save file", osErr, nil)
+	if err = doc.saveFile(name, contents); err != nil {
 		return
 	}
 
 	if isMainCandidate(file.name) {
 		file.flags |= flagCandidate
 		if strings.HasPrefix(contents, Mark) {
+			log.Info("found mark")
 			file.flags |= flagTexdMark
 		} else {
 			max := len(contents)
@@ -172,6 +148,7 @@ func (doc *document) AddFile(name, contents string) (err error) {
 				max = 1024
 			}
 			if strings.Contains(contents[:max], `\documentclass`) {
+				log.Info(`found \documentclass`)
 				file.flags |= flagDocumentClass
 			}
 		}
@@ -219,10 +196,8 @@ func (doc *document) AddFiles(req *http.Request) error {
 }
 
 func (doc *document) SetMainInput(name string) error {
-	doc.RLock()
-	defer doc.RUnlock()
-
 	if _, ok := doc.files[name]; ok {
+		doc.log.Info("setting main input", zap.String("filename", name))
 		doc.mainInput = name
 		return nil
 	}
@@ -237,7 +212,6 @@ func (doc *document) MainInput() (string, error) {
 
 	var withDocClass, withMark, others []*File
 
-	doc.RLock()
 	for _, f := range doc.files {
 		if f.hasTexdMark() {
 			withMark = append(withMark, f)
@@ -247,7 +221,6 @@ func (doc *document) MainInput() (string, error) {
 			others = append(others, f)
 		}
 	}
-	doc.RUnlock()
 
 	for _, candidates := range []struct {
 		files   []*File
@@ -266,6 +239,35 @@ func (doc *document) MainInput() (string, error) {
 	}
 
 	return "", InputError("cannot determine main input file: no candidates", nil, nil)
+}
+
+func (doc *document) saveFile(name, contents string) (err error) {
+	var wd string
+	wd, err = doc.WorkingDirectory()
+	if err != nil {
+		return // err is already an errWithCategory
+	}
+
+	if dir := path.Dir(name); dir != "" {
+		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), 0o700); osErr != nil {
+			err = InputError("cannot create directory", osErr, nil)
+			return
+		}
+	}
+
+	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	defer func() { _ = f.Close() }()
+	if osErr != nil {
+		err = InputError("cannot create file", osErr, nil)
+		return
+	}
+
+	_, osErr = f.Write([]byte(contents))
+	if osErr != nil {
+		err = InputError("cannot save file", osErr, nil)
+		return
+	}
+	return nil
 }
 
 // openFile opens an auxiliary file for reading. Auxiliary files are files
@@ -293,10 +295,12 @@ func (doc *document) openFile(ext string) (io.ReadCloser, error) {
 }
 
 func (doc *document) GetResult() (io.ReadCloser, error) {
+	doc.log.Debug("fetching result")
 	return doc.openFile(".pdf")
 }
 
 func (doc *document) GetLogs() (io.ReadCloser, error) {
+	doc.log.Debug("fetching logs")
 	return doc.openFile(".log")
 }
 
@@ -340,9 +344,6 @@ func isMainCandidate(name string) bool {
 }
 
 func (doc *document) Cleanup() error {
-	doc.Lock()
-	defer doc.Unlock()
-
 	if doc.workdir != "" {
 		if err := doc.fs.RemoveAll(doc.workdir); err != nil {
 			return InputError("cleanup failed", err, nil)

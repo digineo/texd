@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const HeaderKey = "X-Request-Id"
@@ -26,4 +27,12 @@ func RequestID(next http.Handler) http.Handler {
 func GetRequestID(r *http.Request) (string, bool) {
 	id, ok := r.Context().Value(ContextKey).(string)
 	return id, ok
+}
+
+func RequestIDField(ctx context.Context) zap.Field {
+	id, ok := ctx.Value(ContextKey).(string)
+	if !ok {
+		id = "-"
+	}
+	return zap.String("request-id", id)
 }

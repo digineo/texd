@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/digineo/texd/tex"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 const (
@@ -40,9 +40,11 @@ type service struct {
 	executor       func(tex.Document) exec.Exec
 	compileTimeout time.Duration
 	queueTimeout   time.Duration
+
+	log *zap.Logger
 }
 
-func Start(opts Options) func(context.Context) error {
+func Start(opts Options, log *zap.Logger) func(context.Context) error {
 	svc := &service{
 		mode:           opts.Mode,
 		jobs:           make(chan struct{}, opts.QueueLength),
@@ -50,6 +52,7 @@ func Start(opts Options) func(context.Context) error {
 		compileTimeout: opts.CompileTimeout,
 		queueTimeout:   opts.QueueTimeout,
 		images:         opts.Images,
+		log:            log,
 	}
 
 	r := mux.NewRouter()
@@ -63,7 +66,7 @@ func Start(opts Options) func(context.Context) error {
 	// r.Use(handlers.RecoveryHandler())
 	r.Use(middleware.RequestID)
 	r.Use(handlers.CompressHandler)
-	r.Use(middleware.Logging)
+	r.Use(middleware.WithLogging(log))
 	r.Use(middleware.CleanMultipart)
 
 	srv := http.Server{
@@ -72,12 +75,14 @@ func Start(opts Options) func(context.Context) error {
 	}
 
 	go func() {
-		log.Printf("starting server on %q", opts.Addr)
+		zaddr := zap.String("addr", opts.Addr)
+
+		log.Info("starting server", zaddr)
 		if err := srv.ListenAndServe(); err != nil {
 			if err == http.ErrServerClosed {
-				log.Printf("shutting down server on %q", opts.Addr)
+				log.Info("shutting down server", zaddr)
 			} else {
-				log.Printf("error starting server on %q: %v", opts.Addr, err)
+				log.Error("error starting server", zaddr, zap.Error(err))
 			}
 		}
 	}()
@@ -91,22 +96,35 @@ func Start(opts Options) func(context.Context) error {
 	}
 }
 
+var discardlog = zap.NewNop()
+
+func (svc *service) Logger() *zap.Logger {
+	if svc.log == nil {
+		return discardlog
+	}
+	return svc.log
+}
+
 // TODO: collect metrics for prometheus.
 func (svc *service) HandleMetrics(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 }
 
-func errorResponse(res http.ResponseWriter, err error) {
+func errorResponse(log *zap.Logger, res http.ResponseWriter, err error) {
 	res.Header().Set("Content-Type", mimeTypeJSON)
 	res.Header().Set("X-Content-Type-Options", "nosniff")
 	res.WriteHeader(http.StatusUnprocessableEntity)
 
+	var respErr error
 	if cat, ok := err.(*tex.ErrWithCategory); ok {
-		_ = json.NewEncoder(res).Encode(cat)
+		respErr = json.NewEncoder(res).Encode(cat)
 	} else {
-		_ = json.NewEncoder(res).Encode(map[string]string{
+		respErr = json.NewEncoder(res).Encode(map[string]string{
 			"error":    "internal server error",
 			"category": "internal",
 		})
+	}
+	if respErr != nil {
+		log.Error("failed to write response", zap.Error(respErr))
 	}
 }

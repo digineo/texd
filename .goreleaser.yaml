@@ -12,6 +12,7 @@ builds:
       - -X github.com/digineo/texd.commit={{ .Commit }}
       - -X github.com/digineo/texd.commitat={{ .CommitDate }}
       - -X github.com/digineo/texd.buildat={{ .Date }}
+      - -X github.com/digineo/texd.isdev=0
     env:
       - CGO_ENABLED=0
     goos:

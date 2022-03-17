@@ -11,6 +11,7 @@ var (
 	commit   = "HEAD"
 	commitat = "unknown"
 	buildat  = "unknown"
+	isdev    = "1"
 )
 
 const banner = `
@@ -25,11 +26,18 @@ _____    _   _ ____     texd version %s
 // this will contain the Git tag and commit ID. When used as library (or
 // in development), this may return just "development".
 func Version() string {
-	return version
+	if Development() {
+		return version + " (development)"
+	}
+	return version + " (release)"
+}
+
+func Development() bool {
+	return isdev == "1"
 }
 
 // PrintBanner will write a small ASCII graphic and versioning
 // information to w.
 func PrintBanner(w io.Writer) {
-	fmt.Fprintf(w, banner, version, commit, commitat, buildat)
+	fmt.Fprintf(w, banner, Version(), commit, commitat, buildat)
 }

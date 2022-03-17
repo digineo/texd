@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/digineo/texd/tex"
+	"go.uber.org/zap"
 )
 
 type Exec interface {
-	Run(context.Context) error
+	Run(context.Context, *zap.Logger) error
 }
 
 type baseExec struct {

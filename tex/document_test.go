@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestCleanpath(t *testing.T) {
@@ -135,10 +136,10 @@ func TestDocument(t *testing.T) {
 	require := require.New(t)
 
 	// create a document and wrap in a test helper
-	subject := documentHelper{
+	subject := documentHelper{ //nolint:forcetypeassert
 		t:        t,
 		fs:       afero.Afero{Fs: afero.NewMemMapFs()},
-		document: NewDocument(DefaultEngine, "").(*document),
+		document: NewDocument(zap.NewNop(), DefaultEngine, "").(*document),
 	}
 	subject.document.fs = subject.fs
 
@@ -216,10 +217,10 @@ func TestDocument_MainInput(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	subject := documentHelper{
+	subject := documentHelper{ //nolint:forcetypeassert
 		t:        t,
 		fs:       afero.Afero{Fs: afero.NewMemMapFs()},
-		document: NewDocument(DefaultEngine, "").(*document),
+		document: NewDocument(zap.NewNop(), DefaultEngine, "").(*document),
 	}
 	subject.document.fs = subject.fs
 
