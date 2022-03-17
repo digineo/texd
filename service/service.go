@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/refstore"
+	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
 	"github.com/gorilla/handlers"
@@ -22,6 +24,7 @@ const (
 	mimeTypePDF   = "application/pdf"
 	mimeTypePlain = "text/plain; charset=utf-8"
 	mimeTypeHTML  = "text/html; charset=utf-8"
+	mimeTypeTexd  = "application/x.texd"
 
 	KeepJobsNever = iota
 	KeepJobsAlways
@@ -38,11 +41,13 @@ type Options struct {
 	Mode           string
 	KeepJobs       int // used for debugging
 	Images         []string
+	RefStore       refstore.Adapter
 }
 
 type service struct {
 	mode   string
 	images []string
+	refs   refstore.Adapter
 
 	jobs           chan struct{}
 	executor       func(exec.Document) exec.Exec
@@ -64,7 +69,11 @@ func newService(opts Options, log *zap.Logger) *service {
 		maxJobSize:     opts.MaxJobSize,
 		keepJobs:       opts.KeepJobs,
 		images:         opts.Images,
+		refs:           opts.RefStore,
 		log:            log,
+	}
+	if svc.refs == nil {
+		svc.refs, _ = nop.New()
 	}
 	return svc
 }

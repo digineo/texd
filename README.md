@@ -163,16 +163,18 @@ $ docker run --rm -t digineode/texd:latest -h
 ### Render a document
 
 To create a PDF document from an input `.tex` file, send a HTTP POST to the `/render` endpoint.
-You may encode the payload as `multipart/form-data` or `application/x-www-form-encoded`:
+You may encode the payload as `multipart/form-data` or `application/x-www-form-encoded`, however
+the latter is not recommended.
+
+Assuming, you have a `input.tex` in the current directory, you can issue the following command
+to send that file to your texd instance, and save the result in a file named `output.pdf`:
 
 ```console
 $ curl -X POST \
     -F "input.tex=<input.tex" \
-    http://localhost:2201/render
+    -o "output.pdf" \
+    "http://localhost:2201/render"
 ```
-
-Please note that filenames will be normalized, and files pointing outside the root directory
-will be discarded entirely (i.e. `../input.tex` is NOT a valid file name).
 
 You can send multiple files (even in sub directories) as well:
 
@@ -181,12 +183,32 @@ $ curl -X POST \
     -F "cv.tex=<cv.tex" \
     -F "chapters/introduction.tex=<chapters/introduction.tex" \
     -F "logo.pdf=<logo.pdf" \
-    http://localhost:2201/render\?input=cv.tex
+    -o "vita.pdf" \
+    "http://localhost:2201/render?input=cv.tex"
 ```
 
 When sending multiple files, you should specify which one is the main input file (usually the one
 containing `\documentclass`), using the `input=` query parameter. If you omit this parameter, texd
 will try to guess the input file.
+
+Please note that file names will be normalized, and files pointing outside the root directory
+will be discarded entirely (i.e. `../input.tex` is NOT a valid file name). You can't do this:
+
+```console
+$ curl -X POST \
+    -F "../input.tex=<input.tex" \
+    -o "output.pdf" \
+    "http://localhost:2201/render"
+```
+
+However, this is perfectly fine:
+
+```console
+$ curl -X POST \
+    -F "input.tex=<../input.tex" \
+    -o "output.pdf" \
+    "http://localhost:2201/render"
+```
 
 <details><summary>Guessing the input file (click to show details)</summary>
 
@@ -205,10 +227,6 @@ will try to guess the input file.
 </details>
 
 If no main input file can be determined, texd will abort with an error.
-
-> Note (implementation detail): I would have preferred to use the *first* `.tex` file to be the
-> main input file, but Go's form data parsing will convert the request body in to a key/value map
-> (which are unordered and have a randomized order when iterating over their entries).
 
 #### URL Parameters
 
@@ -288,6 +306,9 @@ Possible, known error categories are currently:
 
 - *queue* - texd won't accept new render jobs, if its internal queue is at capacity. In this case
   wait for a few moments to give texd a chance to catch up and then try again.
+
+- *reference* - texd could not find the provided reference store entries. The missing references
+  are listed in the response; you need to repeat the request with those files included.
 
 Additional fields, like `log` for compilation failures, might be present.
 
@@ -409,6 +430,77 @@ need internet access for this to work.
 If your browser does not support modern features like ES2022 proxies, `Object.entries`, `fetch`,
 and `<object type="application/pdf" />` elements, you're out of luck. (Maybe upgrade your browser?)
 Anyway, consider the UI only as demonstrator for the API.
+
+## Reference store
+
+texd has the ability to re-use previously sent material. This allows you to reduce the amount
+of data you need to transmit with each render request. Following a back-on-the-envelope calculation:
+
+- If you want to generate 1000 documents, each including a font with 400 kB in size, and a logo
+  file with 100 kB in size, you will need to transmit 500 MB of the same two files in total.
+- If you can re-use those two assets, you would only need to transmit them once, and use a reference
+  hash for each subsequent request. The total then reduces 1×500 kB (complete assets for the first
+  request) + 999×100 Byte (50 Byte per reference hash for subsequent requests) = 599.9 kB.
+
+The feature in texd parlance is called "reference store", and you may think of it as a cache. It
+saves files server-side (e.g. on disk) and retreives them on-demand, if you request such a file
+reference.
+
+A reference hash is simply the Base64-encoded SHA256 checksum of the file contents, prefixed with
+"sha256:". (Canonically, we use the URL-safe alphabet without padding for the Base64 encoder, but
+texd also accepts the standard alphabet, and padding characters are ignored in both cases.)
+
+<details><summary>Python script to generate reference hashes (click to open details)</summary>
+
+```python
+#!/usr/bin/python3
+"""
+Save this file as texd-refhash.py, and call it like to:
+
+    python3 texd-refhash.py FILE [FILE2 [...]]
+
+This will print the texd file reference hash for FILE, FILE2, etc., each
+on a separate line.
+"""
+
+from base64 import urlsafe_b64encode
+from hashlib import sha256
+from sys import argv
+
+def refhash(filename: str):
+  h = sha256()
+  with open(filename, 'rb') as f:
+    for block in iter(lambda: f.read(4096), b''):
+        h.update(block)
+
+  digest = urlsafe_b64encode(h.digest()).decode('ascii')
+  return f'sha256:{digest}'
+
+if __name__ == '__main__':
+  for file in argv[1:]:
+    print(refhash(file))
+```
+
+</details>
+
+To *use* a file reference, you need to set a special content type in the request (calculated
+using the script above), and include the reference hash instead of the file contents:
+
+```console
+$ python3 texd-refhash.py ../Hausschrift.otf | curl -X POST \
+  -F "input.tex=<input.tex" \
+  -F "Haussschrift.otf=@-;filename=Haussschrift.otf;type=application/x.tex;ref=use" \
+  -o "output.pdf" \
+  http://localhost:2201/render
+```
+
+For this to work, you need to starting the server with a valid `--reference-store` configuration.
+Assuming `./refs` is an existing directory, you can issue the following command:
+
+```console
+$ texd --reference-store "dir://./refs"
+```
+
 
 ## History
 

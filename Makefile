@@ -15,7 +15,8 @@ LDFLAGS = -s -w \
 GOFLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
 # passed to run-* targets
-RUN_ARGS = --job-directory ./tmp --log-level debug
+RUN_ARGS       = --job-directory ./tmp --log-level debug
+EXTRA_RUN_ARGS =
 
 ## help (prints target names with trailing "## comment")
 
@@ -45,11 +46,11 @@ lint: ## runs golangci-lint on source files
 
 .PHONY: run-local
 run-local: tmp build ## builds and runs texd in local mode
-	./$(TARGET) $(RUN_ARGS)
+	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS)
 
 .PHONY: run-container
 run-container: tmp build ## builds and runs texd in container mode
-	./$(TARGET) $(RUN_ARGS) texlive/texlive:latest
+	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS) texlive/texlive:latest
 
 
 ## testing
@@ -74,9 +75,9 @@ test-simple: tmp ## sends a simple document to a running instance
 test-multi: tmp ## sends a more complex document to a running instance
 	curl http://localhost:2201/render \
 		-F "input.tex=<testdata/multi/input.tex" \
-		-s -F "doc.tex=<testdata/multi/doc.tex" \
+		-F "doc.tex=<testdata/multi/doc.tex" \
 		-F "chapter/input.tex=<testdata/multi/chapter/input.tex" \
-		-o tmp/$@-$$(date +%F_%T)-$$$$
+		-s -o tmp/$@-$$(date +%F_%T)-$$$$
 
 .PHONY: test-missing
 test-missing: tmp ## send a broken document to a running instance

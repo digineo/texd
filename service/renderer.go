@@ -4,10 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"sort"
+	"strings"
 
+	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
 	"go.uber.org/zap"
@@ -71,8 +77,8 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		}
 	}()
 
-	if err = doc.AddFiles(req); err != nil {
-		log.Error("failed to add files: %v", zap.Error(err))
+	if err := svc.addFiles(log, doc, req); err != nil {
+		log.Error("failed to add files", zap.Error(err))
 		return err
 	}
 
@@ -157,6 +163,100 @@ func (svc *service) validateEngineParam(name string) (engine tex.Engine, err err
 		err = tex.InputError("unknown engine", err, nil)
 	}
 	return
+}
+
+func (svc *service) addFiles(log *zap.Logger, doc tex.Document, req *http.Request) error {
+	if mf := req.MultipartForm; mf != nil {
+		if err := svc.addFilesFromMultipartForm(log, doc, req, mf); err != nil {
+			return err
+		}
+	}
+
+	for name, contents := range req.PostForm {
+		// AddFile() will only accept one body per file name and construct
+		// a proper error message. No need to perform something akin to
+		// `AddFile(contents[0]) if len(contents) == 1` here.
+		for _, content := range contents {
+			if err := doc.AddFile(name, content); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (svc *service) addFilesFromMultipartForm(log *zap.Logger, doc tex.Document, req *http.Request, mf *multipart.Form) error {
+	defer func() { _ = mf.RemoveAll() }()
+
+	var missingReferences []string
+	var buf bytes.Buffer
+
+	for name, files := range mf.File {
+		name := name
+	eachFile:
+		for _, f := range files {
+			rc, err := f.Open()
+			if err != nil {
+				return tex.InputError("unable to open file", err, tex.KV{"name": name})
+			}
+			defer rc.Close()
+
+			buf.Reset()
+			if _, err = io.Copy(&buf, rc); err != nil {
+				return tex.InputError("failed to read file", err, tex.KV{"name": name})
+			}
+
+			target, err := doc.NewWriter(name)
+			if err != nil {
+				return err // already InputError
+			}
+			defer target.Close()
+
+			if ct := f.Header.Get("Content-Type"); strings.HasPrefix(ct, mimeTypeTexd) {
+				extra := func() tex.KV { return tex.KV{"name": name, "content-type": ct} }
+				_, params, err := mime.ParseMediaType(ct)
+				if err != nil {
+					return tex.InputError("failed to parse content type", err, extra())
+				}
+				switch ref, ok := params["ref"]; {
+				case !ok:
+					// no ref param, continue normally
+				case ref == "use":
+					// buf contains reference hash
+					rawID := bytes.TrimSpace(buf.Bytes())
+					id, err := refstore.ParseIdentifier(rawID)
+					if err != nil {
+						return tex.InputError("failed to parse reference", err, extra())
+					}
+
+					switch err = svc.refs.CopyFile(svc.log, id, target); {
+					case errors.Is(err, refstore.ErrUnknownReference):
+						missingReferences = append(missingReferences, string(rawID))
+						continue eachFile
+					case err != nil:
+						return tex.InputError("failed to copy reference", err, extra())
+					}
+				case ref == "store":
+					if err := svc.refs.Store(log, buf.Bytes()); err != nil {
+						return tex.InputError("failed to store reference", err, extra())
+					}
+				default:
+					return tex.InputError("invalid ref parameter", err, extra())
+				}
+			}
+
+			if _, err := io.Copy(target, &buf); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(missingReferences) > 0 {
+		sort.Strings(missingReferences)
+		return tex.ReferenceError(missingReferences)
+	}
+
+	return nil
 }
 
 func logfileResponse(log *zap.Logger, res http.ResponseWriter, format string, logs io.ReadCloser) {

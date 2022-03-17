@@ -11,6 +11,7 @@ const (
 	inputErr errCategory = iota + 1
 	compilationErr
 	queueErr
+	referenceErr
 )
 
 func (cat errCategory) String() string {
@@ -21,6 +22,8 @@ func (cat errCategory) String() string {
 		return "compilation"
 	case queueErr:
 		return "queue"
+	case referenceErr:
+		return "reference"
 	default:
 		return "unknown"
 	}
@@ -41,6 +44,12 @@ func newCategoryError(cat errCategory, message string, cause error, extra KV) er
 
 func InputError(message string, cause error, extra KV) error {
 	return newCategoryError(inputErr, message, cause, extra)
+}
+
+func ReferenceError(references []string) error {
+	return newCategoryError(referenceErr, "unknown file references", nil, KV{
+		"references": references,
+	})
 }
 
 func CompilationError(message string, cause error, extra KV) error {

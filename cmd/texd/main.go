@@ -15,6 +15,9 @@ import (
 
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/refstore"
+	_ "github.com/digineo/texd/refstore/dir" // sideeffect
+	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
@@ -40,6 +43,7 @@ var (
 	pull        = false
 	logLevel    = zapcore.InfoLevel.String()
 	maxJobSize  = units.BytesSize(float64(opts.MaxJobSize))
+	storageDSN  = ""
 	showVersion = false
 
 	keepJobValues = map[int][]string{
@@ -70,6 +74,8 @@ func parseFlags() {
 		"maximum wait time in full rendering queue")
 	fs.StringVarP(&jobdir, "job-directory", "D", jobdir,
 		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
+	fs.StringVar(&storageDSN, "reference-store", storageDSN,
+		fmt.Sprintf("enable reference store and configure with `DSN`, available adapters are: %v", refstore.AvailableAdapters()))
 	fs.BoolVar(&pull, "pull", pull, "always pull Docker images")
 	fs.StringVar(&logLevel, "log-level", logLevel,
 		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
@@ -105,19 +111,28 @@ func main() {
 			zap.String("flag", "--job-directory"),
 			zap.Error(err))
 	}
-
 	if err := tex.SetDefaultEngine(engine); err != nil {
 		log.Fatal("error setting default TeX engine",
 			zap.String("flag", "--tex-engine"),
 			zap.Error(err))
 	}
-
 	if max, err := units.FromHumanSize(maxJobSize); err != nil {
 		log.Fatal("error parsing maximum job size",
 			zap.String("flag", "--max-job-size"),
 			zap.Error(err))
 	} else {
 		opts.MaxJobSize = max
+	}
+	if storageDSN != "" {
+		if adapter, err := refstore.NewStore(storageDSN); err != nil {
+			log.Fatal("error parsing reference store DSN",
+				zap.String("flag", "--reference-store"),
+				zap.Error(err))
+		} else {
+			opts.RefStore = adapter
+		}
+	} else {
+		opts.RefStore, _ = nop.New()
 	}
 
 	if images := flag.Args(); len(images) > 0 {

@@ -3,7 +3,6 @@ package tex
 import (
 	"bytes"
 	"io"
-	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -45,6 +44,49 @@ func (f *File) isCandidate() bool      { return f.flags&flagCandidate > 0 }
 func (f *File) hasDocumentClass() bool { return f.flags&flagDocumentClass > 0 }
 func (f *File) hasTexdMark() bool      { return f.flags&flagTexdMark > 0 }
 
+type fileWriter struct {
+	log  *zap.Logger
+	buf  []byte // the first few bytes written to wc
+	off  int    // how many bytes were written to buf
+	wc   io.WriteCloser
+	file *File
+}
+
+func (w *fileWriter) Write(p []byte) (int, error) {
+	if w.file.isCandidate() {
+		// fill buf, if buf has capacity
+		if max := len(w.buf); w.off < max {
+			if n := max - w.off; n > len(p) {
+				// p fits completely into buf's rest capacity
+				copy(w.buf[w.off:], p)
+				w.off += len(p)
+			} else {
+				// only the first n bytes fit into buf
+				copy(w.buf[w.off:], p[:n])
+				w.off += n
+			}
+		}
+	}
+
+	return w.wc.Write(p)
+}
+
+func (w *fileWriter) Close() error {
+	if w.file.isCandidate() {
+		if bytes.HasPrefix(w.buf, []byte(Mark)) {
+			w.log.Info("found mark")
+			w.file.flags |= flagTexdMark
+		} else {
+			if bytes.Contains(w.buf, []byte(`\documentclass`)) {
+				w.log.Info(`found \documentclass`)
+				w.file.flags |= flagDocumentClass
+			}
+		}
+	}
+
+	return w.wc.Close()
+}
+
 // A Document outlines the methods needed to create a PDF file from TeX
 // sources, whithin the context of TeX.
 type Document interface {
@@ -68,8 +110,11 @@ type Document interface {
 	// Additional rules may be imposed by the underlying file system.
 	AddFile(name, contents string) error
 
-	// AddFiles adds all files from a multipart/form-data request.
-	AddFiles(req *http.Request) error
+	// NewWriter allows adding new files using an io.Writer. You MUST
+	// call Close() on the returned handle.
+	//
+	// The name has the same restrictions as outlined in AddFile.
+	NewWriter(name string) (io.WriteCloser, error)
 
 	// Cleanup removes the working directory and any contents. You need
 	// to read/copy the result PDF with GetResult() before cleaning up.
@@ -161,9 +206,25 @@ func (doc *document) createWorkDir() {
 	}
 }
 
-func (doc *document) AddFile(name, contents string) (err error) {
+func (doc *document) AddFile(name, contents string) error {
+	wc, err := doc.NewWriter(name)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = wc.Close() }()
+
 	log := doc.log.With(zap.String("filename", name))
 	log.Info("adding file")
+
+	_, err = wc.Write([]byte(contents))
+	if err != nil {
+		return InputError("cannot save file", err, nil)
+	}
+
+	return nil
+}
+
+func (doc *document) NewWriter(name string) (wc io.WriteCloser, err error) {
 	file := &File{}
 
 	defer func() {
@@ -192,66 +253,37 @@ func (doc *document) AddFile(name, contents string) (err error) {
 		doc.files[name] = file
 	}
 
-	if err = doc.saveFile(name, contents); err != nil {
+	var wd string
+	wd, err = doc.WorkingDirectory()
+	if err != nil {
+		return // err is already an errWithCategory
+	}
+
+	if dir := path.Dir(name); dir != "" {
+		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), 0o700); osErr != nil {
+			err = InputError("cannot create directory", osErr, nil)
+			return
+		}
+	}
+
+	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if osErr != nil {
+		err = InputError("cannot create file", osErr, nil)
 		return
 	}
 
+	log := doc.log.With(zap.String("filename", file.name))
 	if isMainCandidate(file.name) {
+		log.Debug("mark as candidate")
 		file.flags |= flagCandidate
-		if strings.HasPrefix(contents, Mark) {
-			log.Info("found mark")
-			file.flags |= flagTexdMark
-		} else {
-			max := len(contents)
-			if max > 1024 {
-				max = 1024
-			}
-			if strings.Contains(contents[:max], `\documentclass`) {
-				log.Info(`found \documentclass`)
-				file.flags |= flagDocumentClass
-			}
-		}
 	}
 
-	return nil
-}
-
-func (doc *document) AddFiles(req *http.Request) error {
-	if mf := req.MultipartForm; mf != nil {
-		defer func() { _ = mf.RemoveAll() }()
-
-		var buf bytes.Buffer
-		for name, files := range mf.File {
-			for _, f := range files {
-				rc, err := f.Open()
-				if err != nil {
-					return InputError("unable to open file", err, KV{"name": name})
-				}
-				defer rc.Close()
-
-				buf.Reset()
-				if _, err = io.Copy(&buf, rc); err != nil {
-					return InputError("failed to read file", err, KV{"name": name})
-				}
-
-				if err := doc.AddFile(name, buf.String()); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	for name, contents := range req.PostForm {
-		// AddFile() will only accept one body per file name and construct
-		// a proper error message. No need to perform something akin to
-		// `AddFile(contents[0]) if len(contents) == 1` here.
-		for _, content := range contents {
-			if err := doc.AddFile(name, content); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return &fileWriter{
+		log:  log,
+		file: file,
+		wc:   f,
+		buf:  make([]byte, 1024),
+	}, nil
 }
 
 func (doc *document) SetMainInput(name string) error {
@@ -303,35 +335,6 @@ func (doc *document) MainInput() (string, error) {
 	}
 
 	return "", InputError("cannot determine main input file: no candidates", nil, nil)
-}
-
-func (doc *document) saveFile(name, contents string) (err error) {
-	var wd string
-	wd, err = doc.WorkingDirectory()
-	if err != nil {
-		return // err is already an errWithCategory
-	}
-
-	if dir := path.Dir(name); dir != "" {
-		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), 0o700); osErr != nil {
-			err = InputError("cannot create directory", osErr, nil)
-			return
-		}
-	}
-
-	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	defer func() { _ = f.Close() }()
-	if osErr != nil {
-		err = InputError("cannot create file", osErr, nil)
-		return
-	}
-
-	_, osErr = f.Write([]byte(contents))
-	if osErr != nil {
-		err = InputError("cannot save file", osErr, nil)
-		return
-	}
-	return nil
 }
 
 // openFile opens an auxiliary file for reading. Auxiliary files are files

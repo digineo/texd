@@ -3,9 +3,11 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,6 +17,8 @@ import (
 	"time"
 
 	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/refstore"
+	"github.com/digineo/texd/refstore/dir"
 	"github.com/docker/go-units"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -22,6 +26,7 @@ import (
 
 type testSuite struct {
 	suite.Suite
+	svc    *service
 	stop   func(context.Context) error
 	logger *zap.Logger
 
@@ -47,8 +52,7 @@ func (suite *testSuite) SetupSuite() {
 	suite.Require().NoError(err)
 	suite.logger = logger
 
-	stop, err := Start(Options{
-		Addr:           ":2201",
+	suite.svc = newService(Options{
 		QueueLength:    runtime.GOMAXPROCS(0),
 		QueueTimeout:   time.Second,
 		MaxJobSize:     units.MiB,
@@ -56,6 +60,8 @@ func (suite *testSuite) SetupSuite() {
 		Mode:           "local",
 		Executor:       suite.Executor,
 	}, logger)
+
+	stop, err := suite.svc.start(":2201")
 	require.NoError(err)
 
 	suite.stop = stop
@@ -74,7 +80,9 @@ func (suite *testSuite) TearDownSuite() {
 }
 
 type serviceTestCase struct {
-	folder       string
+	refstore refstore.Adapter
+	files    func(*multipart.Writer) error
+
 	statusCode   int
 	query        string // raw query params, without leading "?"
 	expectedMIME string
@@ -90,14 +98,14 @@ const (
 
 var serviceTestCases = map[string]serviceTestCase{
 	"single file": {
-		folder:       "simple",
+		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
 	},
 	"single file, explicit input": {
-		folder:       "simple",
+		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		query:        "input=input.tex",
@@ -105,7 +113,7 @@ var serviceTestCases = map[string]serviceTestCase{
 		expectedBody: mockPDF,
 	},
 	"single file, explicit unknown input": {
-		folder:       "simple",
+		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "input=nonexistent.tex",
@@ -113,7 +121,7 @@ var serviceTestCases = map[string]serviceTestCase{
 		expectedBody: `{"category":"input","error":"unknown input file name"}`,
 	},
 	"single file, unknown engine": {
-		folder:       "simple",
+		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockPDF},
 		query:        "engine=dings",
@@ -121,21 +129,21 @@ var serviceTestCases = map[string]serviceTestCase{
 		expectedBody: `{"category":"input","error":"unknown engine"}`,
 	},
 	"multiple files": {
-		folder:       "multi",
+		files:        addDirectory("../testdata/multi", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
 	},
 	"missing input file, JSON errors": {
-		folder:       "missing",
+		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"args":["-cd","-silent","-pv-","-pvc-","-pdfxe","input.tex"],"category":"compilation","cmd":"latexmk","error":"compilation failed"}`,
 	},
 	"missing, with full errors": {
-		folder:       "missing",
+		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "errors=full",
@@ -143,7 +151,7 @@ var serviceTestCases = map[string]serviceTestCase{
 		expectedBody: mockLog,
 	},
 	"missing, with condensed errors": {
-		folder:       "missing",
+		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "errors=condensed",
@@ -151,12 +159,62 @@ var serviceTestCases = map[string]serviceTestCase{
 		expectedBody: "missing input file",
 	},
 	"missing, different engine": {
-		folder:       "missing",
+		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "engine=lualatex",
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"args":["-cd","-silent","-pv-","-pvc-","-pdflua","input.tex"],"category":"compilation","cmd":"latexmk","error":"compilation failed"}`,
+	},
+	"reference store, store file": {
+		files: addDirectory("../testdata/reference", map[string]refAction{
+			"preamble.sty": refStore,
+		}),
+		statusCode:   http.StatusOK,
+		mockParams:   mockParams{false, mockPDF},
+		expectedMIME: mimeTypePDF,
+		expectedBody: mockPDF,
+	},
+	"reference store, use unknown file": {
+		files: addDirectory("../testdata/reference", map[string]refAction{
+			"preamble.sty": refUse,
+		}),
+		statusCode:   http.StatusUnprocessableEntity,
+		mockParams:   mockParams{true, mockPDF},
+		expectedMIME: mimeTypeJSON,
+		expectedBody: `{"category":"reference","error":"unknown file references","references":["sha256:p5w-x0VQUh2kXyYbbv1ubkc-oZ0z7aZYNjSKVVzaZuo"]}`,
+	},
+	"reference store, invalid reference": {
+		files: addDirectory("../testdata/reference", map[string]refAction{
+			"preamble.sty": refUseInvalid,
+		}),
+		statusCode:   http.StatusUnprocessableEntity,
+		mockParams:   mockParams{true, mockPDF},
+		expectedMIME: mimeTypeJSON,
+		expectedBody: `{"category":"input","content-type":"application/x.texd; ref=use","error":"failed to parse reference","name":"preamble.sty"}`,
+	},
+	"reference store, use known file": {
+		refstore: func() refstore.Adapter {
+			refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
+			if err != nil {
+				panic(err)
+			}
+			contents, err := os.ReadFile("../testdata/reference/preamble.sty")
+			if err != nil {
+				panic(err)
+			}
+			if err = refs.Store(zap.NewNop(), contents); err != nil {
+				panic(err)
+			}
+			return refs
+		}(),
+		files: addDirectory("../testdata/reference", map[string]refAction{
+			"preamble.sty": refUse,
+		}),
+		statusCode:   http.StatusOK,
+		mockParams:   mockParams{false, mockPDF},
+		expectedMIME: mimeTypePDF,
+		expectedBody: mockPDF,
 	},
 }
 
@@ -177,12 +235,20 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
-	suite.appendFolder(w, "../testdata/"+testCase.folder)
+	if testCase.files != nil {
+		require.NoError(testCase.files(w))
+	}
 	w.Close()
 
 	uri, err := url.Parse("http://localhost:2201/render")
 	require.NoError(err)
 	uri.RawQuery = testCase.query
+
+	if testCase.refstore != nil {
+		cur := suite.svc.refs
+		suite.svc.refs = testCase.refstore
+		defer func() { suite.svc.refs = cur }()
+	}
 
 	req, err := http.NewRequest(http.MethodPost, uri.String(), &b)
 	require.NoError(err)
@@ -205,34 +271,88 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 }
 
 // Appends all files from a folder.
-func (suite *testSuite) appendFolder(w *multipart.Writer, folder string) {
-	require := suite.Require()
+func addDirectory(dir string, refs map[string]refAction) func(w *multipart.Writer) error {
+	return func(w *multipart.Writer) error {
+		return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				name := strings.TrimPrefix(path, dir+"/")
+				var ref refAction
+				if refs != nil {
+					ref = refs[name]
+				}
+				return addFile(w, dir, name, ref)
+			}
+			return nil
+		})
+	}
+}
 
-	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+type refAction byte
+
+const (
+	refNone refAction = iota
+	refStore
+	refUse
+	refUseInvalid
+)
+
+func addFile(w *multipart.Writer, dir, name string, ref refAction) error {
+	f, err := os.Open(filepath.Join(dir, name))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	fw, err := createFormField(w, name, ref)
+	if err != nil {
+		return err
+	}
+
+	switch ref {
+	case refNone, refStore:
+		_, err = io.Copy(fw, f)
+		return err
+	case refUse:
+		id, err := refstore.ReadIdentifier(f)
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
-			suite.appendFile(w, folder, strings.TrimPrefix(path, folder+"/"))
-		}
-		return nil
-	})
-
-	require.NoError(err)
+		buf := bytes.NewBufferString(id.String())
+		_, err = io.Copy(fw, buf)
+		return err
+	case refUseInvalid:
+		buf := bytes.NewBufferString("sha256:asdf")
+		_, err = io.Copy(fw, buf)
+		return err
+	}
+	panic("not reached")
 }
 
-func (suite *testSuite) appendFile(w *multipart.Writer, folder, filename string) {
-	require := suite.Require()
+// taken from GOROOT/src/mime/multipart/writer.go
+var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
-	suite.logger.Info("append file " + filename)
+// taken from GOROOT/src/mime/multipart/writer.go
+func escapeQuotes(s string) string {
+	return quoteEscaper.Replace(s)
+}
 
-	file, err := os.Open(filepath.Join(folder, filename))
-	require.NoError(err)
-	defer file.Close()
+// taken from GOROOT/src/mime/multipart/writer.go
+func createFormField(w *multipart.Writer, name string, ref refAction) (io.Writer, error) {
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition",
+		fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+			escapeQuotes(name), escapeQuotes(name)))
+	switch ref {
+	case refUse, refUseInvalid:
+		h.Set("Content-Type", fmt.Sprintf("%s; ref=use", mimeTypeTexd))
+	case refStore:
+		h.Set("Content-Type", fmt.Sprintf("%s; ref=store", mimeTypeTexd))
+	default:
+		h.Set("Content-Type", "application/octet-stream")
+	}
+	return w.CreatePart(h)
 
-	fw, err := w.CreateFormFile(filename, filename)
-	require.NoError(err)
-
-	_, err = io.Copy(fw, file)
-	require.NoError(err)
 }

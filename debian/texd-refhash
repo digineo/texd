@@ -1,0 +1,26 @@
+#!/usr/bin/python3
+'''
+Synopsis:
+
+  texd-refhash FILE [FILE [...]]
+
+This will print the texd file reference hash for each FILE, separated
+by a new line.
+'''
+
+from base64 import urlsafe_b64encode
+from hashlib import sha256
+from sys import argv
+
+def refhash(filename: str):
+  h = sha256()
+  with open(filename, 'rb') as f:
+    for block in iter(lambda: f.read(4096), b''):
+        h.update(block)
+
+  digest = urlsafe_b64encode(h.digest()).decode('ascii')
+  return f'sha256:{digest}'
+
+if __name__ == '__main__':
+  for file in argv[1:]:
+    print(refhash(file))
