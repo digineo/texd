@@ -124,7 +124,10 @@ func main() {
 		opts.Executor = cli.Executor
 	}
 
-	stop := service.Start(opts, log)
+	stop, err := service.Start(opts, log)
+	if err != nil {
+		log.Fatal("failed to start service", zap.Error(err))
+	}
 	onExit(log, stop)
 }
 

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -46,7 +48,7 @@ type service struct {
 	log *zap.Logger
 }
 
-func Start(opts Options, log *zap.Logger) func(context.Context) error {
+func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
 	svc := &service{
 		mode:           opts.Mode,
 		jobs:           make(chan struct{}, opts.QueueLength),
@@ -82,16 +84,17 @@ func Start(opts Options, log *zap.Logger) func(context.Context) error {
 		Handler: r,
 	}
 
-	go func() {
-		zaddr := zap.String("addr", opts.Addr)
+	zaddr := zap.String("addr", opts.Addr)
+	log.Info("starting server", zaddr)
 
-		log.Info("starting server", zaddr)
-		if err := srv.ListenAndServe(); err != nil {
-			if err == http.ErrServerClosed {
-				log.Info("shutting down server", zaddr)
-			} else {
-				log.Error("error starting server", zaddr, zap.Error(err))
-			}
+	l, err := net.Listen("tcp", opts.Addr)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		if e := srv.Serve(l); !errors.Is(e, http.ErrServerClosed) {
+			log.Error("unexpected HTTP server shutdown", zap.Error(err))
 		}
 	}()
 
@@ -101,7 +104,7 @@ func Start(opts Options, log *zap.Logger) func(context.Context) error {
 			return fmt.Errorf("server shutdown failed: %w", err)
 		}
 		return nil
-	}
+	}, nil
 }
 
 var discardlog = zap.NewNop()
