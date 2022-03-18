@@ -54,7 +54,7 @@ type service struct {
 	log *zap.Logger
 }
 
-func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
+func newService(opts Options, log *zap.Logger) *service {
 	svc := &service{
 		mode:           opts.Mode,
 		jobs:           make(chan struct{}, opts.QueueLength),
@@ -66,7 +66,10 @@ func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
 		images:         opts.Images,
 		log:            log,
 	}
+	return svc
+}
 
+func (svc *service) routes() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
@@ -83,25 +86,28 @@ func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
 	// r.Use(handlers.RecoveryHandler())
 	r.Use(middleware.RequestID)
 	r.Use(handlers.CompressHandler)
-	r.Use(middleware.WithLogging(log))
+	r.Use(middleware.WithLogging(svc.log))
 	r.Use(middleware.CleanMultipart)
+	return r
+}
 
+func (svc *service) start(addr string) (func(context.Context) error, error) {
 	srv := http.Server{
-		Addr:    opts.Addr,
-		Handler: r,
+		Addr:    addr,
+		Handler: svc.routes(),
 	}
 
-	zaddr := zap.String("addr", opts.Addr)
-	log.Info("starting server", zaddr)
+	zaddr := zap.String("addr", addr)
+	svc.Logger().Info("starting server", zaddr)
 
-	l, err := net.Listen("tcp", opts.Addr)
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
 		if e := srv.Serve(l); !errors.Is(e, http.ErrServerClosed) {
-			log.Error("unexpected HTTP server shutdown", zap.Error(err))
+			svc.Logger().Error("unexpected HTTP server shutdown", zap.Error(err))
 		}
 	}()
 
@@ -112,6 +118,10 @@ func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
 		}
 		return nil
 	}, nil
+}
+
+func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
+	return newService(opts, log).start(opts.Addr)
 }
 
 var discardlog = zap.NewNop()
