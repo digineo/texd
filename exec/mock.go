@@ -67,7 +67,6 @@ func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
 	}
 
 	if x.ShouldFail {
-		log.Error("compilation failed", zap.Error(err))
 		return tex.CompilationError("compilation failed", err, tex.KV{
 			"cmd":  args[0],
 			"args": args[1:],
