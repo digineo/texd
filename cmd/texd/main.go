@@ -19,6 +19,7 @@ import (
 	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
 	"github.com/spf13/pflag"
+	"github.com/thediveo/enumflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -40,6 +41,12 @@ var (
 	logLevel    = zapcore.InfoLevel.String()
 	maxJobSize  = units.BytesSize(float64(opts.MaxJobSize))
 	showVersion = false
+
+	keepJobValues = map[int][]string{
+		service.KeepJobsNever:     {"never"},
+		service.KeepJobsAlways:    {"always"},
+		service.KeepJobsOnFailure: {"on-failure"},
+	}
 )
 
 func parseFlags() {
@@ -68,6 +75,9 @@ func parseFlags() {
 		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
 	fs.BoolVarP(&showVersion, "version", "v", showVersion,
 		`print version information and exit`)
+
+	keepJobsFlag := enumflag.New(&opts.KeepJobs, "value", keepJobValues, enumflag.EnumCaseInsensitive)
+	fs.Var(keepJobsFlag, "keep-jobs", "keep jobs (never | on-failure | always)")
 
 	switch err := fs.Parse(os.Args[1:]); {
 	case errors.Is(err, pflag.ErrHelp):

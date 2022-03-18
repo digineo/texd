@@ -22,6 +22,10 @@ const (
 	mimeTypePDF   = "application/pdf"
 	mimeTypePlain = "text/plain; charset=utf-8"
 	mimeTypeHTML  = "text/html; charset=utf-8"
+
+	KeepJobsNever = iota
+	KeepJobsAlways
+	KeepJobsOnFailure
 )
 
 type Options struct {
@@ -32,6 +36,7 @@ type Options struct {
 	Executor       func(tex.Document) exec.Exec
 	CompileTimeout time.Duration
 	Mode           string
+	KeepJobs       int // used for debugging
 	Images         []string
 }
 
@@ -44,6 +49,7 @@ type service struct {
 	compileTimeout time.Duration
 	queueTimeout   time.Duration
 	maxJobSize     int64 // number of bytes
+	keepJobs       int
 
 	log *zap.Logger
 }
@@ -56,6 +62,7 @@ func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
 		compileTimeout: opts.CompileTimeout,
 		queueTimeout:   opts.QueueTimeout,
 		maxJobSize:     opts.MaxJobSize,
+		keepJobs:       opts.KeepJobs,
 		images:         opts.Images,
 		log:            log,
 	}

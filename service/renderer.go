@@ -31,6 +31,11 @@ func (svc *service) HandleRender(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// should we keep the data for a job?
+func (svc *service) shouldKeepJobs(err error) bool {
+	return svc.keepJobs == KeepJobsAlways || (svc.keepJobs == KeepJobsOnFailure && err != nil)
+}
+
 func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.Request) error { //nolint:funlen
 	err := req.ParseMultipartForm(5 << 20)
 	if err != nil {
@@ -56,13 +61,17 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	defer svc.release()
 
 	doc := tex.NewDocument(log, engine, image)
+
 	defer func() {
+		if svc.shouldKeepJobs(err) {
+			return
+		}
 		if err := doc.Cleanup(); err != nil {
 			log.Error("cleanup failed", zap.Error(err))
 		}
 	}()
 
-	if err := doc.AddFiles(req); err != nil {
+	if err = doc.AddFiles(req); err != nil {
 		log.Error("failed to add files: %v", zap.Error(err))
 		return err
 	}
@@ -70,7 +79,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	// Optionally, set main input file. When present, the name must be
 	// included of multipart request body.
 	if input := params.Get("input"); input != "" {
-		if err := doc.SetMainInput(input); err != nil {
+		if err = doc.SetMainInput(input); err != nil {
 			log.Error("invalid main input file",
 				zap.String("filename", input),
 				zap.Error(err))
@@ -80,7 +89,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 
 	// Check presence main input file. If not given, guess from file
 	// listing.
-	if _, err := doc.MainInput(); err != nil {
+	if _, err = doc.MainInput(); err != nil {
 		return err
 	}
 
@@ -89,7 +98,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		return err
 	}
 
-	if err := svc.executor(doc).Run(req.Context(), log); err != nil {
+	if err = svc.executor(doc).Run(req.Context(), log); err != nil {
 		if format := params.Get("errors"); format != "" {
 			logReader, lerr := doc.GetLogs()
 			if lerr != nil {
