@@ -45,16 +45,75 @@ func (f *File) isCandidate() bool      { return f.flags&flagCandidate > 0 }
 func (f *File) hasDocumentClass() bool { return f.flags&flagDocumentClass > 0 }
 func (f *File) hasTexdMark() bool      { return f.flags&flagTexdMark > 0 }
 
+// A Document outlines the methods needed to create a PDF file from TeX
+// sources, whithin the context of TeX.
 type Document interface {
+	// WorkingDirectory returns the path to a random directory, for
+	// AddFile and NewWriter to place new files in it. Compilation will
+	// usually happen by changing directory into it.
+	//
+	// On the first invocation, this will try to create a new, randomly
+	// named directory.
 	WorkingDirectory() (string, error)
+
+	// AddFile saves the given content as a file in the document's
+	// working directory, with the given name.
+	//
+	// The name is subject to strict validation, any deviation from the
+	// rules will end in an InputError:
+	//	- no duplicate files,
+	//	- no funny characters,
+	//	- only relative paths,
+	//	- no directory traversal.
+	// Additional rules may be imposed by the underlying file system.
 	AddFile(name, contents string) error
+
+	// AddFiles adds all files from a multipart/form-data request.
 	AddFiles(req *http.Request) error
+
+	// Cleanup removes the working directory and any contents. You need
+	// to read/copy the result PDF with GetResult() before cleaning up.
 	Cleanup() error
+
+	// Image declares which Docker image should be used when compiling
+	// the sources. Optional and only relevant, when using the Docker
+	// executor.
 	Image() string
+
+	// Engine defines the LaTeX engine to compile the document with.
 	Engine() Engine
-	SetMainInput(string) error
+
+	// SetMainInput marks a previously added file (either through AddFile
+	// or NewWriter) as main input file ("jobname") for LaTeX.
+	//
+	// It returns an error, if the file naming rules are violated (see
+	// AddFile), or if it references an unknown file. In both cases,
+	// no internal state is updated.
+	//
+	// On success, the MainInput() method will directly return the
+	// given name, and stop guessing the main input file.
+	SetMainInput(name string) error
+
+	// MainInput tries to guess the main input file for the LaTeX
+	// compiler. Candidates taken from .tex files in the root working
+	// directory:
+	//	- highest precedence have files starting with a "%!texd" mark
+	//	- if none ot those exists, use files with a \documentclass in the
+	//	  first 1 KiB
+	//	- if none of those exists, assume any remaining file could be
+	//	  a main input file.
+	// If in any step only one candidate is found, this return its name,
+	// and an error otherwise.
 	MainInput() (string, error)
+
+	// GetResult returns a handle to read the compiled PDF. If MainInput()
+	// returns an error, GetResult will wrap it in an InputError. If the
+	// PDF file does not exist, GetResult will return a CompilationError.
 	GetResult() (io.ReadCloser, error)
+
+	// GetLogs returns a handle to read the TeX compiler logs. If MainInput()
+	// returns an error, GetLogs will wrap it in an InputError. If the
+	// log file does not exist, GetLogs will return a CompilationError.
 	GetLogs() (io.ReadCloser, error)
 }
 
@@ -196,13 +255,18 @@ func (doc *document) AddFiles(req *http.Request) error {
 }
 
 func (doc *document) SetMainInput(name string) error {
-	if _, ok := doc.files[name]; ok {
-		doc.log.Info("setting main input", zap.String("filename", name))
-		doc.mainInput = name
-		return nil
+	name, ok := cleanpath(name)
+	if !ok {
+		return InputError("invalid file name", nil, nil)
+	}
+	_, ok = doc.files[name]
+	if !ok {
+		return InputError("unknown input file name", nil, nil)
 	}
 
-	return InputError("unknown input file name", nil, nil)
+	doc.log.Info("setting main input", zap.String("filename", name))
+	doc.mainInput = name
+	return nil
 }
 
 func (doc *document) MainInput() (string, error) {
