@@ -374,15 +374,15 @@ func addFile(w *multipart.Writer, dir, name string, ref refAction) error {
 	panic("not reached")
 }
 
-// taken from GOROOT/src/mime/multipart/writer.go
+// taken from GOROOT/src/mime/multipart/writer.go.
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
-// taken from GOROOT/src/mime/multipart/writer.go
+// taken from GOROOT/src/mime/multipart/writer.go.
 func escapeQuotes(s string) string {
 	return quoteEscaper.Replace(s)
 }
 
-// taken from GOROOT/src/mime/multipart/writer.go
+// taken from GOROOT/src/mime/multipart/writer.go.
 func createFormField(w *multipart.Writer, name string, ref refAction) (io.Writer, error) {
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition",
@@ -397,5 +397,4 @@ func createFormField(w *multipart.Writer, name string, ref refAction) (io.Writer
 		h.Set("Content-Type", "application/octet-stream")
 	}
 	return w.CreatePart(h)
-
 }

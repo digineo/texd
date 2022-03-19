@@ -128,6 +128,7 @@ func (h *documentHelper) addFile(name, content string, flags candidateFlags) {
 	require.EqualValues(h.t, h.files[name], &File{
 		name:  name,
 		flags: flags,
+		size:  len(content),
 	})
 }
 
@@ -190,7 +191,7 @@ func TestFile_flags(t *testing.T) {
 	t.Parallel()
 	assert := assert.New(t)
 
-	subject := File{"", 0}
+	subject := File{"", 0, 0}
 	assert.False(subject.isCandidate())
 	assert.False(subject.hasDocumentClass())
 	assert.False(subject.hasTexdMark())

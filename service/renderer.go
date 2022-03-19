@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/digineo/texd/metrics"
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
@@ -33,6 +35,7 @@ func (svc *service) HandleRender(res http.ResponseWriter, req *http.Request) {
 
 	log := svc.Logger().With(middleware.RequestIDField(req.Context()))
 	if err := svc.render(log, res, req); err != nil {
+		metrics.ProcessedFailure.Inc()
 		errorResponse(log, res, err)
 	}
 }
@@ -56,6 +59,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	// Add a new job to the queue and bail if we're over capacity.
 	if err = svc.acquire(req.Context()); err != nil {
 		log.Error("failed enter queue", zap.Error(err))
+		metrics.ProcessedRejected.Inc()
 		return err
 	}
 	defer svc.release()
@@ -65,6 +69,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		if svc.shouldKeepJobs(err) {
 			return
 		}
+		observeRenderMetrics(doc)
 		if err := doc.Cleanup(); err != nil {
 			log.Error("cleanup failed", zap.Error(err))
 		}
@@ -94,9 +99,11 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 
 	if err := req.Context().Err(); err != nil {
 		log.Error("cancel render job, client is gone", zap.Error(err))
+		metrics.ProcessedAborted.Inc()
 		return err
 	}
 
+	startProcessing := time.Now()
 	if err = svc.executor(doc).Run(req.Context(), log); err != nil {
 		switch format := params.Get("errors"); format {
 		case "full", "condensed":
@@ -110,6 +117,8 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		}
 		return err
 	}
+	metrics.ProcessingDuration.Observe(time.Since(startProcessing).Seconds())
+	metrics.ProcessedSuccess.Inc()
 
 	pdf, err := doc.GetResult()
 	if err != nil {
@@ -121,9 +130,11 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	// Send PDF
 	res.Header().Set("Content-Type", mimeTypePDF)
 	res.WriteHeader(http.StatusOK)
-	if _, err = io.Copy(res, pdf); err != nil {
+	n, err := io.Copy(res, pdf)
+	if err != nil {
 		log.Error("failed to send results", zap.Error(err))
 	}
+	metrics.OutputSize.Observe(float64(n))
 	return nil // header is already written
 }
 
@@ -282,5 +293,25 @@ func logfileResponse(log *zap.Logger, res http.ResponseWriter, format string, lo
 	}
 	if err := s.Err(); err != nil {
 		log.Error("failed to read logs", zap.Error(err))
+	}
+}
+
+func observeRenderMetrics(doc tex.Document) {
+	m := doc.Metrics()
+
+	observe := func(category string, vs []int) {
+		o := metrics.InputSize.WithLabelValues(category)
+		for _, v := range vs {
+			o.Observe(float64(v))
+		}
+	}
+
+	observe("tex", m.TexFiles)
+	observe("asset", m.AssetFiles)
+	observe("data", m.DataFiles)
+	observe("other", m.OtherFiles)
+
+	if m.Result >= 0 {
+		metrics.OutputSize.Observe(float64(m.Result))
 	}
 }

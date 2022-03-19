@@ -38,6 +38,7 @@ const (
 type File struct {
 	name  string
 	flags candidateFlags
+	size  int
 }
 
 func (f *File) isCandidate() bool      { return f.flags&flagCandidate > 0 }
@@ -68,7 +69,9 @@ func (w *fileWriter) Write(p []byte) (int, error) {
 		}
 	}
 
-	return w.wc.Write(p)
+	n, err := w.wc.Write(p)
+	w.file.size += n
+	return n, err
 }
 
 func (w *fileWriter) Close() error {
@@ -160,6 +163,9 @@ type Document interface {
 	// returns an error, GetLogs will wrap it in an InputError. If the
 	// log file does not exist, GetLogs will return a CompilationError.
 	GetLogs() (io.ReadCloser, error)
+
+	// Metrics reports file sizes.
+	Metrics() Metrics
 }
 
 type document struct {

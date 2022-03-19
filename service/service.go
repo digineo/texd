@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/digineo/texd/exec"
+	"github.com/digineo/texd/metrics"
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -90,7 +92,7 @@ func (svc *service) routes() http.Handler {
 	r.Handle("/render", render).Methods(http.MethodPost)
 
 	r.HandleFunc("/status", svc.HandleStatus).Methods(http.MethodGet)
-	r.HandleFunc("/metrics", svc.HandleMetrics).Methods(http.MethodGet)
+	r.Handle("/metrics", svc.newMetricsHandler()).Methods(http.MethodGet)
 
 	// r.Use(handlers.RecoveryHandler())
 	r.Use(middleware.RequestID)
@@ -142,9 +144,18 @@ func (svc *service) Logger() *zap.Logger {
 	return svc.log
 }
 
-// TODO: collect metrics for prometheus.
-func (svc *service) HandleMetrics(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
+func (svc *service) newMetricsHandler() http.Handler {
+	prom := promhttp.Handler()
+
+	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		qlen, qcap := float64(len(svc.jobs)), float64(cap(svc.jobs))
+		metrics.JobsQueueLength.Set(qlen)
+		metrics.JobQueueRatio.Set(qlen / qcap)
+
+		metrics.Info.WithLabelValues(svc.mode).Set(1)
+
+		prom.ServeHTTP(res, req)
+	})
 }
 
 func errorResponse(log *zap.Logger, res http.ResponseWriter, err error) {
