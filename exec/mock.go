@@ -27,8 +27,8 @@ type MockExec struct {
 // Imprtant note: Mock will panic if the document's main input file
 // does not contain a dot + file extension, of if the result content
 // can't be written.
-func Mock(shouldFail bool, resultContents string) func(tex.Document) Exec {
-	return func(doc tex.Document) Exec {
+func Mock(shouldFail bool, resultContents string) func(Document) Exec {
+	return func(doc Document) Exec {
 		return &MockExec{
 			baseExec:       baseExec{doc: doc},
 			ShouldFail:     shouldFail,
@@ -62,7 +62,11 @@ func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
 		outfile = main[:dot] + ".pdf"
 	}
 
-	if err := x.doc.AddFile(outfile, x.ResultContents); err != nil {
+	adder, ok := x.doc.(interface{ AddFile(string, string) error })
+	if !ok {
+		panic("can't add files to document")
+	}
+	if err := adder.AddFile(outfile, x.ResultContents); err != nil {
 		panic("failed to store result file")
 	}
 

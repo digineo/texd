@@ -12,7 +12,7 @@ type dockerExec struct {
 	baseExec
 }
 
-func (dc *DockerClient) Executor(doc tex.Document) Exec {
+func (dc *DockerClient) Executor(doc Document) Exec {
 	return &dockerExec{
 		baseExec: baseExec{doc: doc},
 		cli:      dc,

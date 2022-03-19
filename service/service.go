@@ -33,7 +33,7 @@ type Options struct {
 	QueueLength    int
 	QueueTimeout   time.Duration
 	MaxJobSize     int64 // number of bytes
-	Executor       func(tex.Document) exec.Exec
+	Executor       func(exec.Document) exec.Exec
 	CompileTimeout time.Duration
 	Mode           string
 	KeepJobs       int // used for debugging
@@ -45,7 +45,7 @@ type service struct {
 	images []string
 
 	jobs           chan struct{}
-	executor       func(tex.Document) exec.Exec
+	executor       func(exec.Document) exec.Exec
 	compileTimeout time.Duration
 	queueTimeout   time.Duration
 	maxJobSize     int64 // number of bytes

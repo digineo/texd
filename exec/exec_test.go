@@ -2,8 +2,6 @@ package exec
 
 import (
 	"errors"
-	"io"
-	"net/http"
 	"testing"
 
 	"github.com/digineo/texd/tex"
@@ -18,21 +16,15 @@ type mockDocument struct {
 	mainErr error
 }
 
-var _ tex.Document = (*mockDocument)(nil)
+var _ Document = (*mockDocument)(nil)
 
 // methods of tex.Document needed for this test
 func (m *mockDocument) WorkingDirectory() (string, error) { return m.wd, m.wdErr }
 func (m *mockDocument) MainInput() (string, error)        { return m.main, m.mainErr }
 func (*mockDocument) Engine() tex.Engine                  { return tex.DefaultEngine }
 
-// methods required to satisfy tex.Document interface
-func (*mockDocument) AddFile(name, contents string) error { return nil }
-func (*mockDocument) AddFiles(*http.Request) error        { return nil }
-func (*mockDocument) Cleanup() error                      { return nil }
-func (*mockDocument) Image() string                       { return "" }
-func (*mockDocument) GetResult() (io.ReadCloser, error)   { return nil, nil }
-func (*mockDocument) GetLogs() (io.ReadCloser, error)     { return nil, nil }
-func (*mockDocument) SetMainInput(string) error           { return nil }
+// methods required to satisfy the Document interface
+func (*mockDocument) Image() string { return "" }
 
 func TestBaseExec_extract(t *testing.T) {
 	dirErr := errors.New("dir error")

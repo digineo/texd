@@ -11,8 +11,18 @@ type Exec interface {
 	Run(context.Context, *zap.Logger) error
 }
 
+// Document is a sub-set of the tex.Document interface.
+type Document interface {
+	WorkingDirectory() (string, error)
+	MainInput() (string, error)
+	Engine() tex.Engine
+	Image() string
+}
+
+var _ Document = (tex.Document)(nil)
+
 type baseExec struct {
-	doc tex.Document
+	doc Document
 }
 
 func (x *baseExec) extract() (dir string, cmd []string, err error) {

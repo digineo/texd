@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/digineo/texd/exec"
-	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -62,7 +61,7 @@ func (suite *testSuite) SetupSuite() {
 	suite.stop = stop
 }
 
-func (suite *testSuite) Executor(doc tex.Document) exec.Exec {
+func (suite *testSuite) Executor(doc exec.Document) exec.Exec {
 	return exec.Mock(suite.mock.shouldFail, suite.mock.resultContents)(doc)
 }
 
