@@ -2,13 +2,14 @@ package tex
 
 import (
 	"fmt"
-	"os"
 	"path"
-	"syscall"
+
+	"github.com/digineo/texd/internal"
 )
 
-// baseJobDir is the directory in which texd will create its
-// job sub-directories.
+// baseJobDir is the directory in which texd will create its job
+// sub-directories. It follows the semantic of os.CreateTemp: when
+// blank, users shall fall back to os.TempDir.
 var baseJobDir string
 
 type ErrInvalidWorkDir struct {
@@ -32,62 +33,13 @@ func (err *ErrInvalidWorkDir) Unwrap() error {
 // must exist, and it must be writable, otherwise a non-nil error is
 // returned.
 func SetJobBaseDir(dir string) error {
-	if dir == "" {
-		dir = os.TempDir()
-	}
-
-	dir = path.Clean(dir)
-	if !path.IsAbs(dir) {
-		wd, err := os.Getwd()
-		if err != nil {
+	if dir != "" {
+		dir = path.Clean(dir)
+		if err := internal.EnsureWritable(osfs, dir); err != nil {
 			return &ErrInvalidWorkDir{dir, err}
 		}
-		dir = path.Join(wd, dir)
-	}
-
-	st, err := osfs.Stat(dir)
-	if err != nil {
-		return &ErrInvalidWorkDir{dir, err}
-	}
-	if !st.IsDir() {
-		return &ErrInvalidWorkDir{dir, os.ErrInvalid}
-	}
-
-	// check permissions
-	var ok bool
-	switch mod := st.Mode(); {
-	case mod&0o002 != 0: // world writable
-		ok = true
-	case mod&0o020 != 0: // group writable
-		ok = matchEGID(st, os.Getegid())
-	case mod&0o200 != 0: // owner writable
-		ok = matchEUID(st, os.Geteuid())
-	}
-	if !ok {
-		return &ErrInvalidWorkDir{dir, os.ErrPermission}
 	}
 
 	baseJobDir = dir
 	return nil
-}
-
-func underlyingStat(st os.FileInfo) *syscall.Stat_t {
-	switch typ := st.Sys().(type) {
-	case syscall.Stat_t:
-		return &typ
-	case *syscall.Stat_t:
-		return typ
-	default:
-		return nil
-	}
-}
-
-func matchEGID(st os.FileInfo, egid int) bool {
-	sys := underlyingStat(st)
-	return sys != nil && int(sys.Gid) == egid
-}
-
-func matchEUID(st os.FileInfo, euid int) bool {
-	sys := underlyingStat(st)
-	return sys != nil && int(sys.Uid) == euid
 }
