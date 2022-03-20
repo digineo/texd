@@ -80,8 +80,7 @@ func (suite *testSuite) TearDownSuite() {
 }
 
 type serviceTestCase struct {
-	refstore refstore.Adapter
-	files    func(*multipart.Writer) error
+	files func(*multipart.Writer) error
 
 	statusCode   int
 	query        string // raw query params, without leading "?"
@@ -96,77 +95,104 @@ const (
 	mockLog = "This is MockTeX version 3.14159\n! missing input file\nBye!\n"
 )
 
-var serviceTestCases = map[string]serviceTestCase{
-	"single file": {
+func (suite *testSuite) TestService_singleFile() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
-	},
-	"single file, explicit input": {
+	})
+}
+
+func (suite *testSuite) TestService_singleFile_explicitInput() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		query:        "input=input.tex",
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
-	},
-	"single file, explicit unknown input": {
+	})
+}
+
+func (suite *testSuite) TestService_singleFile_unknownEcplicitInput() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "input=nonexistent.tex",
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"category":"input","error":"unknown input file name"}`,
-	},
-	"single file, unknown engine": {
+	})
+}
+
+func (suite *testSuite) TestService_unknownEngine() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockPDF},
 		query:        "engine=dings",
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"category":"input","error":"unknown engine"}`,
-	},
-	"multiple files": {
+	})
+}
+
+func (suite *testSuite) TestService_multipleFiles() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/multi", nil),
 		statusCode:   http.StatusOK,
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
-	},
-	"missing input file, JSON errors": {
+	})
+}
+
+func (suite *testSuite) TestService_missingInput_asJSON() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"args":["-cd","-silent","-pv-","-pvc-","-pdfxe","input.tex"],"category":"compilation","cmd":"latexmk","error":"compilation failed"}`,
-	},
-	"missing, with full errors": {
+	})
+}
+
+func (suite *testSuite) TestService_missingInput_fullErrors() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "errors=full",
 		expectedMIME: mimeTypePlain,
 		expectedBody: mockLog,
-	},
-	"missing, with condensed errors": {
+	})
+}
+
+func (suite *testSuite) TestService_missingInput_condensedErrors() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "errors=condensed",
 		expectedMIME: mimeTypePlain,
 		expectedBody: "missing input file",
-	},
-	"missing, different engine": {
+	})
+}
+
+func (suite *testSuite) TestService_missingInput_differentEngine() {
+	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/missing", nil),
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockLog},
 		query:        "engine=lualatex",
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"args":["-cd","-silent","-pv-","-pvc-","-pdflua","input.tex"],"category":"compilation","cmd":"latexmk","error":"compilation failed"}`,
-	},
-	"reference store, store file": {
+	})
+}
+
+func (suite *testSuite) TestService_refstore_storeFile() {
+	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
 			"preamble.sty": refStore,
 		}),
@@ -174,8 +200,11 @@ var serviceTestCases = map[string]serviceTestCase{
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
-	},
-	"reference store, use unknown file": {
+	})
+}
+
+func (suite *testSuite) TestService_refstore_useUnknownRef() {
+	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
 			"preamble.sty": refUse,
 		}),
@@ -183,8 +212,11 @@ var serviceTestCases = map[string]serviceTestCase{
 		mockParams:   mockParams{true, mockPDF},
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"category":"reference","error":"unknown file references","references":["sha256:p5w-x0VQUh2kXyYbbv1ubkc-oZ0z7aZYNjSKVVzaZuo"]}`,
-	},
-	"reference store, invalid reference": {
+	})
+}
+
+func (suite *testSuite) TestService_refstore_invalidRef() {
+	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
 			"preamble.sty": refUseInvalid,
 		}),
@@ -192,23 +224,28 @@ var serviceTestCases = map[string]serviceTestCase{
 		mockParams:   mockParams{true, mockPDF},
 		expectedMIME: mimeTypeJSON,
 		expectedBody: `{"category":"input","content-type":"application/x.texd; ref=use","error":"failed to parse reference","name":"preamble.sty","part":1}`,
-	},
-	"reference store, use known file": {
-		refstore: func() refstore.Adapter {
-			refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
-			if err != nil {
-				panic(err)
-			}
-			contents, err := os.Open("../testdata/reference/preamble.sty")
-			if err != nil {
-				panic(err)
-			}
-			defer contents.Close()
-			if err = refs.Store(zap.NewNop(), contents); err != nil {
-				panic(err)
-			}
-			return refs
-		}(),
+	})
+}
+
+func (suite *testSuite) TestService_refstore_useKnownRef() {
+	cur := suite.svc.refs
+	defer func() { suite.svc.refs = cur }()
+
+	refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
+	if err != nil {
+		panic(err)
+	}
+	suite.svc.refs = refs
+	contents, err := os.Open("../testdata/reference/preamble.sty")
+	if err != nil {
+		panic(err)
+	}
+	if err = refs.Store(zap.NewNop(), contents); err != nil {
+		panic(err)
+	}
+	contents.Close()
+
+	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
 			"preamble.sty": refUse,
 		}),
@@ -216,16 +253,7 @@ var serviceTestCases = map[string]serviceTestCase{
 		mockParams:   mockParams{false, mockPDF},
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
-	},
-}
-
-func (suite *testSuite) TestService() {
-	for name := range serviceTestCases {
-		tc := serviceTestCases[name]
-		suite.Run(name, func() {
-			suite.runServiceTestCase(tc)
-		})
-	}
+	})
 }
 
 func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
@@ -244,12 +272,6 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 	uri, err := url.Parse("http://localhost:2201/render")
 	require.NoError(err)
 	uri.RawQuery = testCase.query
-
-	if testCase.refstore != nil {
-		cur := suite.svc.refs
-		suite.svc.refs = testCase.refstore
-		defer func() { suite.svc.refs = cur }()
-	}
 
 	req, err := http.NewRequest(http.MethodPost, uri.String(), &b)
 	require.NoError(err)
