@@ -450,56 +450,86 @@ A reference hash is simply the Base64-encoded SHA256 checksum of the file conten
 "sha256:". (Canonically, we use the URL-safe alphabet without padding for the Base64 encoder, but
 texd also accepts the standard alphabet, and padding characters are ignored in both cases.)
 
-<details><summary>Python script to generate reference hashes (click to open details)</summary>
+To *use* a file reference, you need to set a special content type in the request, and include the
+reference hash instead of the file contents. The content type must be `pplication/x.texd; ref=use`.
 
-```python
-#!/usr/bin/python3
-"""
-Save this file as texd-refhash.py, and call it like to:
+The resulting HTTP request should then look something like this:
 
-    python3 texd-refhash.py FILE [FILE2 [...]]
+```http
+POST /render HTTP/1.1
+Content-Type: multipart/form-data; boundary=boundary
 
-This will print the texd file reference hash for FILE, FILE2, etc., each
-on a separate line.
-"""
+--boundary
+Content-Disposition: form-data; name=input.tex; filename=input.tex
+Content-Type: application/octet-stream
 
-from base64 import urlsafe_b64encode
-from hashlib import sha256
-from sys import argv
+[content of input.tex omitted]
+--boundary
+Content-Disposition: form-data; name=logo.pdf; filename=logo.pdf
+Content-Type: application/x.texd; ref=use
 
-def refhash(filename: str):
-  h = sha256()
-  with open(filename, 'rb') as f:
-    for block in iter(lambda: f.read(4096), b''):
-        h.update(block)
-
-  digest = urlsafe_b64encode(h.digest()).decode('ascii')
-  return f'sha256:{digest}'
-
-if __name__ == '__main__':
-  for file in argv[1:]:
-    print(refhash(file))
+sha256:p5w-x0VQUh2kXyYbbv1ubkc-oZ0z7aZYNjSKVVzaZuo=
+--boundary--
 ```
 
-</details>
+For unknown reference hashes, texd will respond with an error, and list all unknown references:
 
-To *use* a file reference, you need to set a special content type in the request (calculated
-using the script above), and include the reference hash instead of the file contents:
+```http
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: application/json
+
+{
+  "category": "reference",
+  "error": "unknown file references",
+  "reference": [
+    "sha256:p5w-x0VQUh2kXyYbbv1ubkc-oZ0z7aZYNjSKVVzaZuo="
+  ]
+}
+```
+
+In such a case, you can repeat you HTTP request, and change the `ref=use` to `ref=store` for
+matching documents:
+
+```http
+POST /render HTTP/1.1
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name=input.tex; filename=input.tex
+Content-Type: application/octet-stream
+
+[content of input.tex omitted]
+--boundary
+Content-Disposition: form-data; name=logo.pdf; filename=logo.pdf
+Content-Type: application/x.texd; ref=store
+
+[content of logo.pdf omitted]
+--boundary--
+```
+
+### Server configuration
+
+By default, the reference store is not enabled. You must enable it explicitly, by providing
+a command line flag. Assuming you have a local directory `./refs`, you instruct texd to use
+this directory for references:
 
 ```console
-$ python3 texd-refhash.py ../Hausschrift.otf | curl -X POST \
-  -F "input.tex=<input.tex" \
-  -F "Haussschrift.otf=@-;filename=Haussschrift.otf;type=application/x.tex;ref=use" \
-  -o "output.pdf" \
-  http://localhost:2201/render
+$ texd --reference-store=dir://./refs
 ```
 
-For this to work, you need to starting the server with a valid `--reference-store` configuration.
-Assuming `./refs` is an existing directory, you can issue the following command:
+The actual syntax is `--reference-store=DSN`, where storage adapters are identified through and
+configured with a DSN (*data source name*, a URL). Currently there is only one implementation
+(the `dir` adapter), which only takes a path as argument.
 
-```console
-$ texd --reference-store "dir://./refs"
-```
+It is not unfeasable to imagine further adapters being available in the future, such as key/value
+stores (`redis://`, `memcached://`), object storages (`s3://`), or similar.
+
+### Data retention
+
+For the moment, there's no automatic data retention. Files sent to the server with content type
+`application/x.texd; ref=store` are persisted until they are manually deleted.
+
+We're tracking progess for this feature in [this issue](https://github.com/digineo/texd/issues/5).
 
 
 ## History
@@ -519,26 +549,10 @@ support some layouting feature, or the library in an early alpha stage or alread
 I'll admit that writing TeX templates for commercial settings is a special kind of pain-inducing
 form of art. But looking back at using LaTeX for now over a decade, I still feel it's worth it.
 
+
 ## Future
 
-Currently, texd is state-less: You send some files, and receive a PDF. If you want to render a
-similar document, you need to send the some of the same files (or large parts of other files) again
-and again.
-
-It would be nice if clients could manage "projects" or "templates", i.e. a directory with a preset
-list of static assets (like images, fonts, or document classes), and send only the dynamic files for
-compilation. While I don't have reliable numbers (yet), I suspect this could save a lot of
-bandwidth (assets like images are not easily transfer-compressible and their file size are orders of
-magnitude larger then plaintext `.tex` files).
-
-This would however introduce a state and managing it will introduce quite a lot of complexity on
-both the client side (must know how to query and update a project) and the server side (merging
-a static directory with a dynamic list of files, without cross-query contention, deciding if and
-when it is OK to delete old projects, etc.)
-
----
-
-Another whishlist item is asynchronous rendering: Consider rendering monthly invoices on the first
+One whishlist item is asynchronous rendering: Consider rendering monthly invoices on the first
 of each month; depending on the amount of customers/contracts/invoice positions, this can easily
 mean you need to render a few thousand PDF documents.
 
