@@ -191,7 +191,7 @@ var serviceTestCases = map[string]serviceTestCase{
 		statusCode:   http.StatusUnprocessableEntity,
 		mockParams:   mockParams{true, mockPDF},
 		expectedMIME: mimeTypeJSON,
-		expectedBody: `{"category":"input","content-type":"application/x.texd; ref=use","error":"failed to parse reference","name":"preamble.sty"}`,
+		expectedBody: `{"category":"input","content-type":"application/x.texd; ref=use","error":"failed to parse reference","name":"preamble.sty","part":1}`,
 	},
 	"reference store, use known file": {
 		refstore: func() refstore.Adapter {
@@ -199,10 +199,11 @@ var serviceTestCases = map[string]serviceTestCase{
 			if err != nil {
 				panic(err)
 			}
-			contents, err := os.ReadFile("../testdata/reference/preamble.sty")
+			contents, err := os.Open("../testdata/reference/preamble.sty")
 			if err != nil {
 				panic(err)
 			}
+			defer contents.Close()
 			if err = refs.Store(zap.NewNop(), contents); err != nil {
 				panic(err)
 			}

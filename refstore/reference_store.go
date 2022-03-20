@@ -15,7 +15,7 @@ type Adapter interface {
 	CopyFile(log *zap.Logger, id Identifier, w io.Writer) error
 
 	// Store saves the content in the adapter backend.
-	Store(log *zap.Logger, contents []byte) error
+	Store(log *zap.Logger, r io.Reader) error
 }
 
 var ErrUnknownReference = errors.New("unknown reference")

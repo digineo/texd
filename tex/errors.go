@@ -38,6 +38,24 @@ type ErrWithCategory struct {
 	extra   KV
 }
 
+// ExtendError adds the given extra ke/value pairs to err, if err is a
+// ErrWithCategory. If extra is empty or err is another type of error,
+// this function does nothing.
+func ExtendError(err error, extra KV) {
+	if len(extra) == 0 {
+		return
+	}
+	if catErr, ok := err.(*ErrWithCategory); ok {
+		if catErr.extra == nil {
+			catErr.extra = extra
+			return
+		}
+		for k, v := range extra {
+			catErr.extra[k] = v
+		}
+	}
+}
+
 func newCategoryError(cat errCategory, message string, cause error, extra KV) error {
 	return &ErrWithCategory{cat: cat, message: message, cause: cause, extra: extra}
 }

@@ -43,17 +43,11 @@ func (svc *service) shouldKeepJobs(err error) bool {
 }
 
 func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.Request) error { //nolint:funlen
-	err := req.ParseMultipartForm(5 << 20)
-	if err != nil {
-		return tex.InputError("parsing form data failed", err, nil)
-	}
 	params := req.URL.Query()
-
 	image, err := svc.validateImageParam(params.Get("image"))
 	if err != nil {
 		return err
 	}
-
 	engine, err := svc.validateEngineParam(params.Get("engine"))
 	if err != nil {
 		return err
@@ -67,7 +61,6 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	defer svc.release()
 
 	doc := tex.NewDocument(log, engine, image)
-
 	defer func() {
 		if svc.shouldKeepJobs(err) {
 			return
@@ -165,97 +158,103 @@ func (svc *service) validateEngineParam(name string) (engine tex.Engine, err err
 	return
 }
 
+type errMissingReference struct{ ref string }
+
+func (err *errMissingReference) Error() string { return err.ref }
+
 func (svc *service) addFiles(log *zap.Logger, doc tex.Document, req *http.Request) error {
-	if mf := req.MultipartForm; mf != nil {
-		if err := svc.addFilesFromMultipartForm(log, doc, req, mf); err != nil {
+	ct := req.Header.Get("Content-Type")
+	mt, params, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return tex.InputError("failed to parse request: invalid content type", err, tex.KV{
+			"content-type": ct,
+		})
+	}
+	if mt != "multipart/form-data" {
+		return tex.InputError("unsupported media type: expected multipart/form-data", nil, tex.KV{
+			"media-type": mt,
+		})
+	}
+	mr := multipart.NewReader(req.Body, params["boundary"])
+	var missingRefs []string
+	refErr := &errMissingReference{}
+	for i := 0; ; i++ {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		switch err = svc.addFileFromPart(log, doc, part, i); {
+		case errors.As(err, &refErr):
+			missingRefs = append(missingRefs, refErr.ref)
+		case err != nil:
 			return err
 		}
 	}
 
-	for name, contents := range req.PostForm {
-		// AddFile() will only accept one body per file name and construct
-		// a proper error message. No need to perform something akin to
-		// `AddFile(contents[0]) if len(contents) == 1` here.
-		for _, content := range contents {
-			if err := doc.AddFile(name, content); err != nil {
-				return err
-			}
-		}
+	if len(missingRefs) > 0 {
+		sort.Strings(missingRefs)
+		return tex.ReferenceError(missingRefs)
 	}
 	return nil
 }
 
-func (svc *service) addFilesFromMultipartForm(log *zap.Logger, doc tex.Document, req *http.Request, mf *multipart.Form) error {
-	defer func() { _ = mf.RemoveAll() }()
+func (svc *service) addFileFromPart(log *zap.Logger, doc tex.Document, part *multipart.Part, partNum int) error {
+	name := part.FormName()
+	if name == "" {
+		return tex.InputError("empty name", nil, tex.KV{"part": partNum})
+	}
 
-	var missingReferences []string
-	var buf bytes.Buffer
+	target, err := doc.NewWriter(name)
+	if err != nil {
+		tex.ExtendError(err, tex.KV{"part": partNum})
+		return err // already InputError
+	}
+	defer target.Close()
 
-	for name, files := range mf.File {
-		name := name
-	eachFile:
-		for _, f := range files {
-			rc, err := f.Open()
+	if ct := part.Header.Get("Content-Type"); strings.HasPrefix(ct, mimeTypeTexd) {
+		extra := func() tex.KV { return tex.KV{"name": name, "content-type": ct, "part": partNum} }
+		_, params, err := mime.ParseMediaType(ct)
+		if err != nil {
+			return tex.InputError("failed to parse content type", err, extra())
+		}
+
+		var buf bytes.Buffer
+		if _, err = io.Copy(&buf, part); err != nil {
+			return tex.InputError("failed to read part", err, extra())
+		}
+
+		switch ref, ok := params["ref"]; {
+		case !ok:
+			// no ref param, continue normally
+		case ref == "use":
+			// buf contains reference hash
+			rawID := bytes.TrimSpace(buf.Bytes())
+			id, err := refstore.ParseIdentifier(rawID)
 			if err != nil {
-				return tex.InputError("unable to open file", err, tex.KV{"name": name})
-			}
-			defer rc.Close()
-
-			buf.Reset()
-			if _, err = io.Copy(&buf, rc); err != nil {
-				return tex.InputError("failed to read file", err, tex.KV{"name": name})
+				return tex.InputError("failed to parse reference", err, extra())
 			}
 
-			target, err := doc.NewWriter(name)
-			if err != nil {
-				return err // already InputError
+			switch err = svc.refs.CopyFile(svc.log, id, target); {
+			case errors.Is(err, refstore.ErrUnknownReference):
+				return &errMissingReference{string(rawID)}
+			case err != nil:
+				return tex.InputError("failed to use reference", err, extra())
+			default:
+				return nil // we're done
 			}
-			defer target.Close()
-
-			if ct := f.Header.Get("Content-Type"); strings.HasPrefix(ct, mimeTypeTexd) {
-				extra := func() tex.KV { return tex.KV{"name": name, "content-type": ct} }
-				_, params, err := mime.ParseMediaType(ct)
-				if err != nil {
-					return tex.InputError("failed to parse content type", err, extra())
-				}
-				switch ref, ok := params["ref"]; {
-				case !ok:
-					// no ref param, continue normally
-				case ref == "use":
-					// buf contains reference hash
-					rawID := bytes.TrimSpace(buf.Bytes())
-					id, err := refstore.ParseIdentifier(rawID)
-					if err != nil {
-						return tex.InputError("failed to parse reference", err, extra())
-					}
-
-					switch err = svc.refs.CopyFile(svc.log, id, target); {
-					case errors.Is(err, refstore.ErrUnknownReference):
-						missingReferences = append(missingReferences, string(rawID))
-						continue eachFile
-					case err != nil:
-						return tex.InputError("failed to copy reference", err, extra())
-					}
-				case ref == "store":
-					if err := svc.refs.Store(log, buf.Bytes()); err != nil {
-						return tex.InputError("failed to store reference", err, extra())
-					}
-				default:
-					return tex.InputError("invalid ref parameter", err, extra())
-				}
+		case ref == "store":
+			tee := io.TeeReader(&buf, target)
+			if err := svc.refs.Store(log, tee); err != nil {
+				return tex.InputError("failed to store reference", err, extra())
 			}
-
-			if _, err := io.Copy(target, &buf); err != nil {
-				return err
-			}
+		default:
+			return tex.InputError("invalid ref parameter", err, extra())
 		}
 	}
 
-	if len(missingReferences) > 0 {
-		sort.Strings(missingReferences)
-		return tex.ReferenceError(missingReferences)
+	if _, err := io.Copy(target, part); err != nil {
+		return err
 	}
-
 	return nil
 }
 

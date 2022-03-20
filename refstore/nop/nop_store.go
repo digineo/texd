@@ -20,6 +20,6 @@ func (*nop) CopyFile(*zap.Logger, refstore.Identifier, io.Writer) error {
 	return refstore.ErrUnknownReference
 }
 
-func (*nop) Store(*zap.Logger, []byte) error {
+func (*nop) Store(*zap.Logger, io.Reader) error {
 	return nil
 }

@@ -92,14 +92,28 @@ func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) e
 	return nil
 }
 
-func (d *dir) Store(log *zap.Logger, contents []byte) error {
-	id := refstore.NewIdentifier(contents)
+func (d *dir) Store(log *zap.Logger, r io.Reader) error {
+	tmp, err := afero.TempFile(d.fs, d.path, "tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create storage object: %v", err)
+	}
+	defer tmp.Close()
+
+	tee := io.TeeReader(r, tmp)
+	id, err := refstore.ReadIdentifier(tee)
+	if err != nil {
+		_ = d.fs.Remove(tmp.Name())
+		return fmt.Errorf("failed to create storage object: %v", err)
+	}
+
 	log.Debug("store file",
 		zap.String("refstore", "disk"),
 		zap.String("id", id.Raw()))
 
-	if err := afero.WriteFile(d.fs, d.idPath(id), contents, 0o600); err != nil {
-		return fmt.Errorf("failed to create storage object: %v", err)
+	if err = d.fs.Rename(tmp.Name(), d.idPath(id)); err != nil {
+		_ = d.fs.Remove(tmp.Name())
+		_ = d.fs.Remove(d.idPath(id))
+		return fmt.Errorf("failed to create storage object: %w", err)
 	}
 	return nil
 }
