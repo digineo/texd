@@ -98,7 +98,8 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	}
 
 	if err = svc.executor(doc).Run(req.Context(), log); err != nil {
-		if format := params.Get("errors"); format != "" {
+		switch format := params.Get("errors"); format {
+		case "full", "condensed":
 			logReader, lerr := doc.GetLogs()
 			if lerr != nil {
 				log.Error("failed to get logs", zap.Error(lerr))
@@ -107,7 +108,6 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 			logfileResponse(log, res, format, logReader)
 			return nil // header is already written
 		}
-
 		return err
 	}
 
