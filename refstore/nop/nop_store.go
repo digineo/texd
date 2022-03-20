@@ -20,6 +20,11 @@ func (*nop) CopyFile(*zap.Logger, refstore.Identifier, io.Writer) error {
 	return refstore.ErrUnknownReference
 }
 
-func (*nop) Store(*zap.Logger, io.Reader) error {
-	return nil
+func (*nop) Store(_ *zap.Logger, r io.Reader) error {
+	_, err := io.Copy(io.Discard, r)
+	return err
+}
+
+func (*nop) Exists(refstore.Identifier) bool {
+	return false
 }

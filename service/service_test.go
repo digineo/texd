@@ -79,6 +79,18 @@ func (suite *testSuite) TearDownSuite() {
 	suite.Require().NoError(suite.stop(ctx))
 }
 
+func (suite *testSuite) swapRefStore() (refstore.Adapter, func()) {
+	cur := suite.svc.refs
+
+	refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
+	if err != nil {
+		panic(err)
+	}
+	suite.svc.refs = refs
+
+	return refs, func() { suite.svc.refs = cur }
+}
+
 type serviceTestCase struct {
 	files func(*multipart.Writer) error
 
@@ -192,6 +204,9 @@ func (suite *testSuite) TestService_missingInput_differentEngine() {
 }
 
 func (suite *testSuite) TestService_refstore_storeFile() {
+	refs, restore := suite.swapRefStore()
+	defer restore()
+
 	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
 			"preamble.sty": refStore,
@@ -201,6 +216,16 @@ func (suite *testSuite) TestService_refstore_storeFile() {
 		expectedMIME: mimeTypePDF,
 		expectedBody: mockPDF,
 	})
+
+	require := suite.Require()
+
+	f, err := os.Open("../testdata/reference/preamble.sty")
+	require.NoError(err)
+	defer f.Close()
+
+	id, err := refstore.ReadIdentifier(f)
+	require.NoError(err)
+	require.True(refs.Exists(id))
 }
 
 func (suite *testSuite) TestService_refstore_useUnknownRef() {
@@ -228,14 +253,9 @@ func (suite *testSuite) TestService_refstore_invalidRef() {
 }
 
 func (suite *testSuite) TestService_refstore_useKnownRef() {
-	cur := suite.svc.refs
-	defer func() { suite.svc.refs = cur }()
+	refs, restore := suite.swapRefStore()
+	defer restore()
 
-	refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
-	if err != nil {
-		panic(err)
-	}
-	suite.svc.refs = refs
 	contents, err := os.Open("../testdata/reference/preamble.sty")
 	if err != nil {
 		panic(err)

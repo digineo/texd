@@ -65,6 +65,11 @@ func NewMemory(config *url.URL) (refstore.Adapter, error) {
 	return a, nil
 }
 
+func (d *dir) Exists(id refstore.Identifier) bool {
+	_, err := d.fs.Stat(d.idPath(id))
+	return err == nil
+}
+
 func configurePath(config *url.URL) string {
 	path := config.Path
 	if config.Host == "." {

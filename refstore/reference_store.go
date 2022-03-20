@@ -16,6 +16,10 @@ type Adapter interface {
 
 	// Store saves the content in the adapter backend.
 	Store(log *zap.Logger, r io.Reader) error
+
+	// Exists checks whether the given reference identifier exists in this
+	// storage adapter.
+	Exists(id Identifier) bool
 }
 
 var ErrUnknownReference = errors.New("unknown reference")
