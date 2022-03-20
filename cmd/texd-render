@@ -1,0 +1,125 @@
+#!/usr/bin/python3
+
+from typing import Union
+
+from os import path, pathsep
+import sys
+
+from urllib.parse import urlparse
+import json
+import requests
+
+import argparse
+
+def parse_file_arg(arg: str) -> list[str]:
+    '''
+    parse_file_arg takes a string of the shape 'a:b' and and returns a list
+    containing 'a' and 'b'.
+
+    If the string argument has the shape 'a', it returns ['a', 'a'].
+
+    The actual separator is platform-dependent (see `os.pathsep`). On Unix
+    systems this is ':', on Windows ';'.
+    '''
+    parts = arg.split(pathsep, 2)
+    if len(parts) == 1:
+        parts.append(path.basename(parts[0]))
+    return parts
+
+FileList    = Union[list[tuple[str, str]], None]
+
+def create_parts(files: FileList = None):
+    '''
+    create_parts assembles `files` into a multipart/form-data
+    body suitable for requests.post.
+    '''
+
+    if files == None: files = []
+
+    parts = {}
+    num   = 0
+
+    for f in files:
+        (form_name, input_file) = f
+        print(f'part {num}: {input_file} as {form_name}')
+        parts[form_name] = (form_name, open(input_file, 'rb'), 'application/octet-stream')
+        num += 1
+
+    return parts
+
+
+def render_document(url: str, files: FileList = []) -> requests.Response:
+    '''
+    render_document sends an HTTP POST request to the given URL.
+
+    The request body includes all files as multipart/form-data entries.
+    '''
+    parts = create_parts(files=files)
+    r = requests.post(url, files=parts)
+
+    return r
+
+
+def error(message):
+    '''error prints `message` to stderr.'''
+    print(message, file=sys.stderr)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Simple command line tool to interface with a texd server',
+        epilog=f'''
+            At least one FILE must be given.
+            The FILE arguments take the format "path" or "path{pathsep}name,
+            where "path" is the local path to the file, and "name" is the file name
+            to be used on the server, and default to "basename(path)".
+        ''')
+    parser.add_argument('--files', nargs='+', metavar='FILE', type=str, default=[],
+                        help='one or more file to send to the server')
+    parser.add_argument('--addr', nargs=1, metavar='URI', type=str, default='http://localhost:2201/',
+                        help='address of texd server instance (defaults to http://localhost:2201/)')
+    parser.add_argument('--error-format', dest="errfmt", nargs=1, type=str, choices=('json', 'full', 'condensed'),
+                        help='select error format: "json" (default), "full" or "condesed" TeX log file')
+    parser.add_argument('--output', nargs=1, metavar='FILE', type=str, default='-',
+                        help='name of output file (defaults to stdout)')
+    args = parser.parse_args()
+
+    file_args: FileList = []
+    for f in args.files:
+        [input_file, form_name] = parse_file_arg(f)
+        file_args.append((form_name, input_file))
+
+    if len(file_args) == 0:
+        parser.print_help()
+        exit(2)
+
+    url = urlparse(args.addr)._replace(path="/render")
+    print(args.errfmt)
+    if (errfmt := args.errfmt) and errfmt != None:
+        url = url._replace(query=f'errors={errfmt[0]}')
+
+    r = render_document(url.geturl(), files=file_args)
+
+    if r.status_code == 200:
+        if args.output == '-':
+            print(r.content, end=None, flush=True)
+        else:
+            with open(args.output, 'wb') as f:
+                f.write(r.content)
+            print(f'written {args.output}')
+        exit(0)
+
+    if r.status_code == 422:
+        ct = r.headers['Content-Type']
+        if ct.startswith('text/plain'):
+            error('texd returned compilation error, these are the logs:')
+            error('---')
+            error(r.text)
+        elif ct.startswith('application/json'):
+            error('texd returned error')
+            error(json.dumps(r.json(), indent=4))
+    else:
+        error(f'Unexpected response from texd: {r.status_code}')
+        error('---')
+        error(r.text)
+    exit(1)
