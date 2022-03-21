@@ -11,6 +11,7 @@ import (
 
 type localExec struct {
 	baseExec
+	path string // overrides command to execute (in tests)
 }
 
 func LocalExec(doc Document) Exec {
@@ -31,6 +32,11 @@ func (x *localExec) Run(ctx context.Context, log *zap.Logger) error {
 		})
 	}
 
+	if x.path != "" {
+		// in tests, we don't want to actually execute latexmk
+		args[0] = x.path
+	}
+
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = dir
@@ -38,7 +44,9 @@ func (x *localExec) Run(ctx context.Context, log *zap.Logger) error {
 
 	log.Debug("running latexmk", zap.Strings("args", args[1:]))
 	if err := cmd.Run(); err != nil {
-		log.Error("compilation failed", zap.Error(err))
+		log.Error("compilation failed",
+			zap.String("stderr", stderr.String()),
+			zap.Error(err))
 		return tex.CompilationError("compilation failed", err, tex.KV{
 			"cmd":    args[0],
 			"args":   args[1:],

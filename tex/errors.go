@@ -93,6 +93,10 @@ func (err *ErrWithCategory) Unwrap() error {
 	return err.cause
 }
 
+func (err *ErrWithCategory) Extra() KV {
+	return err.extra
+}
+
 func (err *ErrWithCategory) MarshalJSON() ([]byte, error) {
 	data := KV{
 		"error":    err.message, // omit cause, could leak internal data
