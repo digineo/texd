@@ -1,5 +1,13 @@
 # texd
 
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/digineo/texd.svg)](https://pkg.go.dev/github.com/digineo/texd)
+[![Test, Lint, Release](https://github.com/digineo/texd/actions/workflows/test.yml/badge.svg)](https://github.com/digineo/texd/actions/workflows/test.yml)
+[![Coverage](https://codecov.io/gh/digineo/texd/branch/master/graph/badge.svg)](https://codecov.io/gh/digineo/texd)
+[![Go Report Card](https://goreportcard.com/badge/github.com/digineo/texd)](https://goreportcard.com/report/github.com/digineo/texd)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/digineo/texd/master/LICENSE)
+
+
 texd is a TeXaS (TeX as (a) service) solution, designed for your internal document generation, i.e.
 on your own servers.
 
