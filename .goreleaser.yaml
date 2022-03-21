@@ -2,7 +2,8 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - main: ./cmd/texd
+  - id: texd
+    main: ./cmd/texd
     binary: texd
     flags:
       - -trimpath
@@ -26,8 +27,10 @@ archives:
       linux: Linux
       darwin: macOS
 nfpms:
-  - package_name: texd
-    vendor: Dominik Menke
+  - id: texd
+    builds: [texd]
+    package_name: texd
+    vendor: Digineo GmbH
     homepage: https://github.com/digineo/texd
     maintainer: Dominik Menke <dom@digineo.de>
     description: |-
@@ -49,6 +52,26 @@ nfpms:
         recommends:
           - latexmk
           - texlive-xetex
+  - id: tools
+    package_name: texd-tools
+    meta: true
+    homepage: https://github.com/digineo/texd
+    maintainer: Dominik Menke <dom@digineo.de>
+    description: |-
+      texd-tools includes command line tools useful to interact with
+      a texd server. Currenty, the following tools are bundled:
+
+      * texd-render: an HTTP client to compile source files to PDF
+    license: MIT
+    formats:
+      - deb
+    contents:
+      - src: cmd/texd-render
+        dst: /usr/bin/texd-render
+    overrides:
+      deb:
+        dependencies:
+          - python3-requests
 dockers:
   - goos: linux
     goarch: amd64
