@@ -34,6 +34,7 @@ var opts = service.Options{
 	CompileTimeout: time.Minute,
 	Mode:           "local",
 	Executor:       exec.LocalExec,
+	KeepJobs:       service.KeepJobsNever,
 }
 
 var (
@@ -50,7 +51,36 @@ var (
 		service.KeepJobsAlways:    {"always"},
 		service.KeepJobsOnFailure: {"on-failure"},
 	}
+
+	retPol       int
+	retPolValues = map[int][]string{
+		0: {"keep", "none"},
+		1: {"purge", "purge-on-start"},
+		2: {"access"},
+	}
+	retPolItems = 1000                                      // number of items in refstore
+	retPolSize  = units.BytesSize(float64(100 * units.MiB)) // max total file size
 )
+
+func retentionPolicy() (refstore.RetentionPolicy, error) {
+	switch retPol {
+	case 0:
+		return &refstore.KeepForever{}, nil
+	case 1:
+		return &refstore.PurgeOnStart{}, nil
+	case 2:
+		sz, err := units.FromHumanSize(retPolSize)
+		if err != nil {
+			return nil, err
+		}
+		pol, err := refstore.NewAccessList(retPolItems, int(sz))
+		if err != nil {
+			return nil, err
+		}
+		return pol, nil
+	}
+	panic("not reached")
+}
 
 func parseFlags() []string {
 	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
@@ -82,7 +112,14 @@ func parseFlags() []string {
 		`print version information and exit`)
 
 	keepJobsFlag := enumflag.New(&opts.KeepJobs, "value", keepJobValues, enumflag.EnumCaseInsensitive)
-	fs.Var(keepJobsFlag, "keep-jobs", "keep jobs (never | on-failure | always)")
+	fs.Var(keepJobsFlag, "keep-jobs", "keep jobs [never, on-failure, always]")
+
+	retPolFlag := enumflag.New(&retPol, "retention-policy", retPolValues, enumflag.EnumCaseInsensitive)
+	fs.VarP(retPolFlag, "retention-policy", "R", "how to handle reference store quota [keep, purge-on-start, access]")
+	fs.IntVar(&retPolItems, "rp-access-items", retPolItems,
+		"for retention-policy=access: maximum number of items to keep in access list, before evicting files")
+	fs.StringVar(&retPolSize, "rp-access-size", retPolSize,
+		"for retention-policy=access: maximum total size of items in access list, before evicting files")
 
 	switch err := fs.Parse(os.Args[1:]); {
 	case errors.Is(err, pflag.ErrHelp):
@@ -125,7 +162,13 @@ func main() {
 		opts.MaxJobSize = max
 	}
 	if storageDSN != "" {
-		if adapter, err := refstore.NewStore(storageDSN); err != nil {
+		rp, err := retentionPolicy()
+		if err != nil {
+			log.Fatal("error initializing retention policy",
+				zap.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
+				zap.Error(err))
+		}
+		if adapter, err := refstore.NewStore(storageDSN, rp); err != nil {
 			log.Fatal("error parsing reference store DSN",
 				zap.String("flag", "--reference-store"),
 				zap.Error(err))

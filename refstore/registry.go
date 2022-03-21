@@ -7,7 +7,9 @@ import (
 	"sync"
 )
 
-type AdapterConstructor func(*url.URL) (Adapter, error)
+// AdapterConstructor constructs a new adapter implementation from the
+// given config DSN and retention policy.
+type AdapterConstructor func(*url.URL, RetentionPolicy) (Adapter, error)
 
 type ErrStoreAlreadyTaken string
 
@@ -32,10 +34,13 @@ func RegisterAdapter(name string, adapter AdapterConstructor) {
 	stores[name] = adapter
 }
 
-// NewStore creates a new reference store with the given DSN. The adapter
-// name is extracted from the DSN, i.e. the disk adapter requires a
-// DSN of the form "disk://".
-func NewStore(dsn string) (Adapter, error) {
+// NewStore creates a new reference store with the given DSN and retention
+// policy. The adapter name is extracted from the DSN, i.e. the dir adapter
+// requires a DSN of the form "dir://".
+//
+// If rp is nil, a "keep forever" policy is assumed and an instance of
+// KeepForever is passed to the reference store constructor.
+func NewStore(dsn string, rp RetentionPolicy) (Adapter, error) {
 	storeMu.RLock()
 	defer storeMu.RUnlock()
 
@@ -49,7 +54,11 @@ func NewStore(dsn string) (Adapter, error) {
 		return nil, fmt.Errorf("unknown storage adapter %q", uri.Scheme)
 	}
 
-	return constructor(uri)
+	if rp == nil {
+		rp = &KeepForever{}
+	}
+
+	return constructor(uri, rp)
 }
 
 func AvailableAdapters() (list []string) {

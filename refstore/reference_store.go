@@ -22,4 +22,6 @@ type Adapter interface {
 	Exists(id Identifier) bool
 }
 
+// ErrUnknownReference can be returned from Adapter implementations, if
+// a given Identifier is unknown to them.
 var ErrUnknownReference = errors.New("unknown reference")

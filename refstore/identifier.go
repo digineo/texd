@@ -34,10 +34,14 @@ var (
 // File references are identified by their checksum.
 type Identifier string
 
+// String returns the canonical string representation of the Identifier,
+// i.e. something like "sha256:<bas64 chars>".
 func (id Identifier) String() string {
 	return "sha256:" + string(id)
 }
 
+// Raw returns the raw URL-safe Base64-encoded Identifier, i.e. id.String(),
+// but without the "sha256:" prefix. For now, this is identical to string(id).
 func (id Identifier) Raw() string {
 	return string(id)
 }

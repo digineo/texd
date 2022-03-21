@@ -3,6 +3,7 @@ module github.com/digineo/texd
 go 1.18
 
 require (
+	github.com/bahlo/generic-list-go v0.2.0
 	github.com/docker/docker v20.10.14+incompatible
 	github.com/docker/go-units v0.4.0
 	github.com/gorilla/handlers v1.5.1

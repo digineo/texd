@@ -82,7 +82,7 @@ func (suite *testSuite) TearDownSuite() {
 func (suite *testSuite) swapRefStore() (refstore.Adapter, func()) {
 	cur := suite.svc.refs
 
-	refs, err := dir.NewMemory(&url.URL{Path: "/deeply/nested"})
+	refs, err := dir.NewMemory(nil, &refstore.KeepForever{})
 	if err != nil {
 		panic(err)
 	}

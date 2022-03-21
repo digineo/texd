@@ -1,18 +1,25 @@
 // Package dir implements an on-disk reference storage adapter.
 //
-// To use it, add a anonymous import to your main package:
+// To be able to use it, add an anonymous import to your main package:
 //
-//	import (
-//		_ "github.com/digineo/texd/refstore/dir"
-//	)
+//	import _ "github.com/digineo/texd/refstore/dir"
+//
+// This registers the "dir://" and "memory://" adapters.
 //
 // For configuration, use a DSN with the following shape:
 //
 //	dsn := "dir:///path/for/persistent/files?options"
-//	dir, _ := refstore.NewStore(dsn)
+//	dir, _ := refstore.NewStore(dsn, &refstore.KeepForever{})
 //
 // Note the triple-slash: the scheme is "dir://", and the directory
 // itself is /path/for/persistent/files. See New() for valid options.
+//
+// Mostly for testing, this also provides a memory-backed adapter. It is
+// STRONGLY recommended to use it only with a size-limited access list,
+// as it may otherwise consume all available RAM:
+//
+//	rp, _ := refstore.NewAccessList(1000, 100 * units.MiB)
+//	mem, _ := restore.NewStore("memory:", rp)
 package dir
 
 import (
@@ -31,38 +38,60 @@ import (
 
 func init() {
 	refstore.RegisterAdapter("dir", New)
+	refstore.RegisterAdapter("memory", NewMemory)
 }
 
 type dir struct {
 	fs   afero.Fs
 	path string
+	rp   refstore.RetentionPolicy
 }
 
 // New returns a new storage adapter.
 //
-// The following options (config.Query()) are understood:
-// - none yet
+// This adapter takes only the path from the config URL. The path must
+// point to an existing directory, and it must be writable, otherwise
+// New returns an error.
 //
-// The config.Path must point to an existing directory, and it must be
-// writable.
-func New(config *url.URL) (refstore.Adapter, error) {
-	a := &dir{
+// The retention policy is applied immediately: in case of refstore.PurgeOnStart,
+// existing file references will be deleted, and in case of refstore.AccessList,
+// references are first ordered by mtime and added in order to the retention
+// policies internal state (which may evict and delete files, if the policies
+// limits are reached).
+func New(config *url.URL, rp refstore.RetentionPolicy) (refstore.Adapter, error) {
+	d := &dir{
 		fs:   afero.OsFs{},
-		path: configurePath(config),
+		path: pathFromURL(config),
+		rp:   rp,
 	}
-	if err := internal.EnsureWritable(a.fs, a.path); err != nil {
-		return nil, fmt.Errorf("path %q not writable: %w", a.path, err)
+	if err := internal.EnsureWritable(d.fs, d.path); err != nil {
+		return nil, fmt.Errorf("path %q not writable: %w", d.path, err)
 	}
-	return a, nil
+	if err := d.initRetentionPolicy(); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
-func NewMemory(config *url.URL) (refstore.Adapter, error) {
-	a := &dir{
+// NewMemory returns a memory-backed reference store adapter.
+//
+// The config URL is ignored, all reference files are stored in a virtual
+// file system at "/".
+//
+// Like New, The retention policy is applied immediately. Note that due
+// to the nature of (volatile) memory, refstore.PurgeOnStart and refstore.KeepForever
+// behave the same way.
+//
+// It is STRONGLY recommended to use NewMemotry only with a size-limited
+// access list, as it may otherwise consume all available RAM.
+func NewMemory(config *url.URL, rp refstore.RetentionPolicy) (refstore.Adapter, error) {
+	d := &dir{
 		fs:   afero.NewMemMapFs(),
-		path: configurePath(config),
+		path: "/",
+		rp:   rp,
 	}
-	_ = a.fs.MkdirAll(a.path, 0o755)
-	return a, nil
+	_ = d.fs.Mkdir(d.path, 0o755)
+	return d, nil
 }
 
 func (d *dir) Exists(id refstore.Identifier) bool {
@@ -70,7 +99,7 @@ func (d *dir) Exists(id refstore.Identifier) bool {
 	return err == nil
 }
 
-func configurePath(config *url.URL) string {
+func pathFromURL(config *url.URL) string {
 	path := config.Path
 	if config.Host == "." {
 		path = filepath.Join(".", path)
@@ -94,6 +123,7 @@ func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) e
 	if _, err := io.Copy(dst, src); err != nil {
 		return fmt.Errorf("failed to copy storage object: %v", err)
 	}
+	d.rp.Touch(id)
 	return nil
 }
 
@@ -104,7 +134,8 @@ func (d *dir) Store(log *zap.Logger, r io.Reader) error {
 	}
 	defer tmp.Close()
 
-	tee := io.TeeReader(r, tmp)
+	sz := sizeWriter{tmp, 0}
+	tee := io.TeeReader(r, &sz)
 	id, err := refstore.ReadIdentifier(tee)
 	if err != nil {
 		_ = d.fs.Remove(tmp.Name())
@@ -115,10 +146,20 @@ func (d *dir) Store(log *zap.Logger, r io.Reader) error {
 		zap.String("refstore", "disk"),
 		zap.String("id", id.Raw()))
 
-	if err = d.fs.Rename(tmp.Name(), d.idPath(id)); err != nil {
+	dst := d.idPath(id)
+	if err = d.fs.Rename(tmp.Name(), dst); err != nil {
 		_ = d.fs.Remove(tmp.Name())
-		_ = d.fs.Remove(d.idPath(id))
-		return fmt.Errorf("failed to create storage object: %w", err)
+		_ = d.fs.Remove(dst)
+		return fmt.Errorf("failed to create storage object %s: %w", id.String(), err)
+	}
+
+	d.rp.Add(&refstore.FileRef{ID: id, Size: sz.n})
+	return nil
+}
+
+func (d *dir) remove(id refstore.Identifier) error {
+	if err := d.fs.Remove(d.idPath(id)); err != nil {
+		return fmt.Errorf("failed to delete storage object %s: %w", id.String(), err)
 	}
 	return nil
 }

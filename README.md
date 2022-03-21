@@ -442,7 +442,7 @@ Anyway, consider the UI only as demonstrator for the API.
 ## Reference store
 
 texd has the ability to re-use previously sent material. This allows you to reduce the amount
-of data you need to transmit with each render request. Following a back-on-the-envelope calculation:
+of data you need to transmit with each render request. Following a back-of-the-envelope calculation:
 
 - If you want to generate 1000 documents, each including a font with 400 kB in size, and a logo
   file with 100 kB in size, you will need to transmit 500 MB of the same two files in total.
@@ -459,7 +459,7 @@ A reference hash is simply the Base64-encoded SHA256 checksum of the file conten
 texd also accepts the standard alphabet, and padding characters are ignored in both cases.)
 
 To *use* a file reference, you need to set a special content type in the request, and include the
-reference hash instead of the file contents. The content type must be `pplication/x.texd; ref=use`.
+reference hash instead of the file contents. The content type must be `application/x.texd; ref=use`.
 
 The resulting HTTP request should then look something like this:
 
@@ -534,11 +534,35 @@ stores (`redis://`, `memcached://`), object storages (`s3://`), or similar.
 
 ### Data retention
 
-For the moment, there's no automatic data retention. Files sent to the server with content type
-`application/x.texd; ref=store` are persisted until they are manually deleted.
+texd supports three different retention policies:
 
-We're tracking progess for this feature in [this issue](https://github.com/digineo/texd/issues/5).
+1. `keep` (or `none`) will keep all file references forever. This is the default setting.
+2. `purge-on-start` (or just `purge`) will delete file references once on startup.
+3. `access` will keep an access list with LRU semantics, and delete file references, either if
+   a max. number of items is reached, or if the total size of items exeedes a threshold, or both.
 
+To select a specific retention policy, use the `--retention-policy` CLI flag:
+
+```console
+$ texd --reference-store=dir://./refs --retention-policy=purge
+```
+
+To configure the access list (`--retention-policy=access`), you can adopt the quota to your needs:
+
+```
+$ texd --reference-store=dir://./refs \
+    --retention-policy=access \
+    --rp-access-items=1000 \
+    --rp-access-size=100MB
+```
+
+Notes:
+
+- The default quota for the max. number of items (`--rp-access-items`) is 1000.
+- The default quota for the max. total file size (`--rp-access-size`) is 100MB.
+- Total file size is measured in bytes, common suffixes (100KB, 2MiB, 1.3GB) work as expected.
+- To disable either limit, set the value to 0 (e.g. `--rp-access-items=0`).
+- It is an error to disable both limits (in this case just use `--retention-policy=keep`).
 
 ## History
 
@@ -616,9 +640,7 @@ Of course, this project was not created in a void, other solutions exist as well
 
 ## Contributing
 
-This project is in its early stage.
-
-Feel free to report bugs and feature request to <https://github.com/digineo/texd/issues>.
+Please report bugs and feature request to <https://github.com/digineo/texd/issues>.
 
 Pull requests are welcome, even minor ones for typo fixes. Before you start on a larger feature,
 please create a proposal (in form of an issue) first.
