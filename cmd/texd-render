@@ -6,12 +6,17 @@ from base64 import urlsafe_b64encode
 from hashlib import sha256
 from os import path, pathsep
 import sys
+import argparse
 
 from urllib.parse import urlparse
 import json
 import requests
 
-import argparse
+
+def log(message):
+    '''log prints `message` to stderr.'''
+    print(message, file=sys.stderr)
+
 
 def refhash(filename: str) -> str:
     '''refhash calculates the file rerference hash for the given file.'''
@@ -22,6 +27,7 @@ def refhash(filename: str) -> str:
 
     digest = urlsafe_b64encode(h.digest()).decode('ascii')
     return f'sha256:{digest}'
+
 
 def parse_file_arg(arg: str) -> list[str]:
     '''
@@ -34,12 +40,14 @@ def parse_file_arg(arg: str) -> list[str]:
     systems this is ':', on Windows ';'.
     '''
     parts = arg.split(pathsep, 2)
+    if path.isdir(parts[0]):
+        raise IsADirectoryError(parts[0])
     if len(parts) == 1:
         parts.append(path.basename(parts[0]))
     return parts
 
-FileList    = Union[list[tuple[str, str]], None]
-RefList     = Union[list[tuple[str, str, str]], None]
+FileList = Union[list[tuple[str, str]], None]
+RefList  = Union[list[tuple[str, str, str]], None]
 
 def create_parts(files: FileList = None,
                  refs: RefList = None,
@@ -60,17 +68,17 @@ def create_parts(files: FileList = None,
 
     for f in files:
         (form_name, input_file) = f
-        print(f'part {num}: {input_file} as {form_name}')
+        log(f'part {num}: {input_file} as {form_name}')
         parts[form_name] = (form_name, open(input_file, 'rb'), 'application/octet-stream')
         num += 1
 
     for f in refs:
         (form_name, input_file, ref) = f
         if ref in missing:
-            print(f'part {num}: {input_file} as {form_name} (storing as {ref}')
+            log(f'part {num}: {input_file} as {form_name} (storing as {ref}')
             parts[form_name] = (form_name, open(input_file, 'rb'), 'application/x.texd; ref=store')
         else:
-            print(f'part {num}: {input_file} as {form_name} (using ref {ref}')
+            log(f'part {num}: {input_file} as {form_name} (using ref {ref}')
             parts[form_name] = (form_name, ref, 'application/x.texd; ref=use')
         num += 1
 
@@ -105,16 +113,11 @@ def render_document(url: str, files: FileList = [], refs: RefList = None) -> req
     r = requests.post(url, files=parts)
 
     if (missing := missing_refs(r)) and len(missing) > 0:
+        log(f'missing {len(missing)} references, retrying')
         parts = create_parts(files=files, refs=refs, missing=missing)
-        print('missing references, retrying')
         r = requests.post(url, files=parts)
 
     return r
-
-
-def error(message):
-    '''error prints `message` to stderr.'''
-    print(message, file=sys.stderr)
 
 
 if __name__ == '__main__':
@@ -153,7 +156,6 @@ if __name__ == '__main__':
         exit(2)
 
     url = urlparse(args.addr)._replace(path="/render")
-    print(args.errfmt)
     if (errfmt := args.errfmt) and errfmt != None:
         url = url._replace(query=f'errors={errfmt[0]}')
 
@@ -161,24 +163,25 @@ if __name__ == '__main__':
 
     if r.status_code == 200:
         if args.output == '-':
-            print(r.content, end=None, flush=True)
+            sys.stdout.buffer.write(r.content)
         else:
-            with open(args.output, 'wb') as f:
+            outfile = args.output[0]
+            with open(outfile, 'wb') as f:
                 f.write(r.content)
-            print(f'written {args.output}')
+            log(f'written {outfile}')
         exit(0)
 
     if r.status_code == 422:
         ct = r.headers['Content-Type']
         if ct.startswith('text/plain'):
-            error('texd returned compilation error, these are the logs:')
-            error('---')
-            error(r.text)
+            log('texd returned compilation error, these are the logs:')
+            log('---')
+            log(r.text)
         elif ct.startswith('application/json'):
-            error('texd returned error')
-            error(json.dumps(r.json(), indent=4))
+            log('texd returned error')
+            log(json.dumps(r.json(), indent=4))
     else:
-        error(f'Unexpected response from texd: {r.status_code}')
-        error('---')
-        error(r.text)
+        log(f'Unexpected response from texd: {r.status_code}')
+        log('---')
+        log(r.text)
     exit(1)
