@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -53,7 +52,7 @@ var (
 	}
 )
 
-func parseFlags() {
+func parseFlags() []string {
 	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -93,11 +92,13 @@ func parseFlags() {
 		fmt.Fprintf(os.Stderr, "Error parsing flags:\n\t%v\n", err)
 		os.Exit(2)
 	}
+
+	return fs.Args()
 }
 
 func main() {
 	texd.PrintBanner(os.Stdout)
-	parseFlags()
+	images := parseFlags() //nolint:ifshort // func has sideeffects
 	log, sync := setupLogger()
 	defer sync()
 
@@ -135,7 +136,8 @@ func main() {
 		opts.RefStore, _ = nop.New()
 	}
 
-	if images := flag.Args(); len(images) > 0 {
+	if len(images) > 0 {
+		log.Info("using docker", zap.Strings("images", images))
 		cli, err := exec.NewDockerClient(log)
 		if err != nil {
 			log.Fatal("error connecting to dockerd", zap.Error(err))
