@@ -1,0 +1,63 @@
+# syntax=docker/dockerfile:1.4
+FROM debian:bullseye-slim
+
+ENV LC_ALL C.UTF-8
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN <<-eot
+	set -ex
+
+	apt-get update --quiet
+	apt-get full-upgrade --yes
+	apt-get install --yes --no-install-recommends \
+		biber \
+		chktex \
+		cm-super \
+		context \
+		dvidvi \
+		dvipng \
+		feynmf \
+		fonts-freefont-ttf \
+		fonts-liberation \
+		fonts-texgyre \
+		fragmaster \
+		ghostscript \
+		gnuplot-nox \
+		imagemagick \
+		latexmk \
+		lmodern \
+		psutils \
+		purifyeps \
+		tex-gyre \
+		texlive \
+		texlive-base \
+		texlive-bibtex-extra \
+		texlive-binaries \
+		texlive-extra-utils \
+		texlive-font-utils \
+		texlive-fonts-extra \
+		texlive-fonts-extra-links \
+		texlive-fonts-recommended \
+		texlive-formats-extra \
+		texlive-games \
+		texlive-humanities \
+		texlive-lang-english \
+		texlive-lang-german \
+		texlive-lang-greek \
+		texlive-latex-base \
+		texlive-latex-extra \
+		texlive-latex-recommended \
+		texlive-luatex \
+		texlive-metapost \
+		texlive-music \
+		texlive-pictures \
+		texlive-plain-generic \
+		texlive-pstricks \
+		texlive-publishers \
+		texlive-science \
+		texlive-science-doc \
+		texlive-xetex
+
+	apt-get autoremove --yes
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+eot
