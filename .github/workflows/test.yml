@@ -2,6 +2,8 @@ name: Test, Lint, Release
 
 on:
   push:
+    tags-ignore:
+      - base/*
   pull_request:
 
 jobs:
@@ -18,7 +20,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Go modules
         uses: actions/cache@v2
@@ -48,7 +50,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Go modules
         uses: actions/cache@v2
@@ -80,7 +82,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Go modules
         uses: actions/cache@v2
