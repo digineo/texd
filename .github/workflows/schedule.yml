@@ -73,7 +73,7 @@ jobs:
         id: latest-tag
 
       - name: Extract major version
-        uses: actions/github-script@v2
+        uses: actions/github-script@v6
         with:
           script: |
             const tag = '${{ steps.latest-tag.outputs.tag }}'
