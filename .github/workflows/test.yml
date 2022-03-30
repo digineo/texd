@@ -2,6 +2,7 @@ name: Test, Lint, Release
 
 on:
   push:
+    branches:
     tags-ignore:
       - base/*
   pull_request:
