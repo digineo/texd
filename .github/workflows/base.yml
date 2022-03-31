@@ -12,6 +12,7 @@ on:
 jobs:
   # update digineode/texd:base image
   base:
+    name: Create digineode/texd:base
     runs-on: ubuntu-latest
     steps:
       - name: Setup QEMU
