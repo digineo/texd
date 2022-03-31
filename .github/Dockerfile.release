@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.4
+ARG GO_VERSION=1.18
+ARG IS_RELEASE=0
+FROM golang:${GO_VERSION}-bullseye as builder
+
+# This Dockerfile is used by GitHub Actions to build the
+# digineode/texd:latest image whenever there is a commit pushed
+# to the master branch. For tagged commits, this also creates
+# digineode/texd:vX and digineode/texd:vX.Y.Z.
+#
+# It leverages buildkit to generate an AMD64 and ARM64 image.
+#
+# For details, see workflows/test.yml, steps latest and release.
+
+WORKDIR /work
+ADD . /work/
+
+RUN <<-eot
+	set -ex
+
+	if [ "${IS_RELEASE}" = "1" ]; then
+		export DEVELOPMENT=0
+	fi
+
+	go mod download
+	make build
+
+	./texd --version
+eot
+
+FROM digineode/texd:base
+
+COPY --from=builder /work/texd /bin/
+
+WORKDIR /texd
+
+EXPOSE 2201
+
+ENTRYPOINT ["/bin/texd", "--job-directory", "/texd"]

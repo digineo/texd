@@ -1,4 +1,4 @@
-FROM texlive/texlive:latest
+FROM digineode/texd:base
 
 COPY texd /bin/
 
