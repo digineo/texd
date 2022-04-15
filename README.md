@@ -28,15 +28,6 @@ Several technologies make scaling in any dimension relatively easy:
   distributions simultaneously)
 - using HTTP enables redundancy and/or load balancing without much effort
 
-## Early Development Note
-
-The code in this repo is in a **VERY** early state. Most of it was created on a few rainy evenings.
-Feel free to explore the code, but don't expect anything to work yet :-)
-
-This Readme reflects how the end-goal *should* look like, based on my personal requirements. It is
-in no way final or complete. Some described features might be removed, or extended upon.
-
-
 ## Operation Modes
 
 texd is designed to be run/deployed in 2½ different ways:
@@ -165,8 +156,6 @@ $ docker run --rm -t digineode/texd:latest -h
 > Note: This option listing might be outdated. Run `texd --help` to get the up-to-date listing.
 
 ## HTTP API
-
-> TODO: formalize as OpenAPI spec?
 
 ### Render a document
 
