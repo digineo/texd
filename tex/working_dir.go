@@ -2,6 +2,7 @@ package tex
 
 import (
 	"fmt"
+	"os"
 	"path"
 
 	"github.com/digineo/texd/internal"
@@ -35,11 +36,25 @@ func (err *ErrInvalidWorkDir) Unwrap() error {
 func SetJobBaseDir(dir string) error {
 	if dir != "" {
 		dir = path.Clean(dir)
-		if err := internal.EnsureWritable(osfs, dir); err != nil {
+		if !path.IsAbs(dir) {
+			wd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("unable to determine current working directory: %w", err)
+			}
+			dir = path.Join(wd, dir)
+		}
+		if err := internal.EnsureWritable(texFs, dir); err != nil {
 			return &ErrInvalidWorkDir{dir, err}
 		}
 	}
 
 	baseJobDir = dir
 	return nil
+}
+
+func JobBaseDir() string {
+	if baseJobDir != "" {
+		return baseJobDir
+	}
+	return os.TempDir()
 }

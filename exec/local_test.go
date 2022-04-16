@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -16,10 +17,7 @@ import (
 
 func TestLocalExec_Run(t *testing.T) {
 	t.Parallel()
-
 	require := require.New(t)
-	logger, err := zap.NewDevelopment()
-	require.NoError(err)
 
 	// create tempdir
 	tmpDir, err := ioutil.TempDir("/tmp", "texd")
@@ -30,21 +28,26 @@ func TestLocalExec_Run(t *testing.T) {
 	err = os.WriteFile(path.Join(tmpDir, "main.tex"), []byte("hello world"), 0o600)
 	require.NoError(err)
 
-	doc := mockDocument{tmpDir, nil, "main.tex", nil}
-	ctx := context.Background()
-
 	latexmkPath, err := filepath.Abs("testdata/latexmk")
 	require.NoError(err)
 
 	tests := []struct {
+		doc            Document
 		path           string
 		expectedErr    string
 		expectedOutput string
 	}{
 		{
+			doc:  &mockDocument{tmpDir, nil, "main.tex", nil},
 			path: "/bin/true",
 		},
 		{
+			doc:         &mockDocument{"", io.ErrClosedPipe, "main.tex", nil},
+			path:        "/bin/false",
+			expectedErr: "invalid document: io: read/write on closed pipe",
+		},
+		{
+			doc:            &mockDocument{tmpDir, nil, "main.tex", nil},
 			path:           latexmkPath,
 			expectedErr:    "compilation failed: exit status 23",
 			expectedOutput: tmpDir + " -cd -silent -pv- -pvc- -pdfxe main.tex\n",
@@ -54,15 +57,17 @@ func TestLocalExec_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			// create local exec
-			exec := LocalExec(&doc).(*localExec)
+			exec := LocalExec(tt.doc).(*localExec)
 			exec.path = tt.path
-			err := exec.Run(ctx, logger)
+			err := exec.Run(context.Background(), zap.NewNop())
 
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)
 			} else if assert.EqualError(t, err, tt.expectedErr) {
 				cErr := err.(*tex.ErrWithCategory)
-				assert.Equal(t, tt.expectedOutput, cErr.Extra()["output"])
+				if tt.expectedOutput != "" {
+					assert.Equal(t, tt.expectedOutput, cErr.Extra()["output"])
+				}
 			}
 		})
 	}

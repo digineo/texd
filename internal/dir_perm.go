@@ -43,23 +43,23 @@ func EnsureWritable(fs afero.Fs, dir string) error {
 	return nil
 }
 
-func underlyingStat(st os.FileInfo) *syscall.Stat_t {
+func owner(st os.FileInfo) (uid, gid int, ok bool) {
 	switch typ := st.Sys().(type) {
 	case syscall.Stat_t:
-		return &typ
+		return int(typ.Uid), int(typ.Gid), true
 	case *syscall.Stat_t:
-		return typ
+		return int(typ.Uid), int(typ.Gid), true
 	default:
-		return nil
+		return 0, 0, false
 	}
 }
 
 func matchEGID(st os.FileInfo, egid int) bool {
-	sys := underlyingStat(st)
-	return sys != nil && int(sys.Gid) == egid
+	_, gid, ok := owner(st)
+	return ok && gid == egid
 }
 
 func matchEUID(st os.FileInfo, euid int) bool {
-	sys := underlyingStat(st)
-	return sys != nil && int(sys.Uid) == euid
+	uid, _, ok := owner(st)
+	return ok && uid == euid
 }

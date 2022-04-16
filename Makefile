@@ -50,8 +50,29 @@ run-local: tmp build ## builds and runs texd in local mode
 
 .PHONY: run-container
 run-container: tmp build ## builds and runs texd in container mode
-	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS) texlive/texlive:latest
+	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS) digineode/texd:base
 
+.PHONY: run-dind-bind
+run-dind-bind: tmp docker-latest ## build and runs texd in container mode, using Docker-in-Docker
+	docker run \
+		--rm -it \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $$(pwd)/tmp:/texd \
+		-p 127.0.0.1:2201:2201 \
+		digineode/texd:latest \
+		--log-level debug $(EXTRA_RUN_ARGS) \
+		digineode/texd:base
+
+.PHONY: run-dind-volume
+run-dind-volume: tmp docker-latest ## build and runs texd in container mode, using Docker-in-Docker
+	docker run \
+		--rm -it \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v texd-work:/texd \
+		-p 127.0.0.1:2201:2201 \
+		digineode/texd:latest \
+		--log-level debug $(EXTRA_RUN_ARGS) \
+		digineode/texd:base
 
 ## testing
 

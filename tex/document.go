@@ -17,8 +17,8 @@ import (
 // should specify main files explicitly.
 const Mark = "%!texd"
 
-// osfs can be overridden in tests.
-var osfs = afero.NewOsFs()
+// texFs can be overridden in tests.
+var texFs = afero.NewOsFs()
 
 // ForbiddenFiles is a list of file names which are not allowed for
 // security reasons.
@@ -187,7 +187,7 @@ var _ Document = (*document)(nil)
 
 func NewDocument(log *zap.Logger, engine Engine, image string) Document {
 	return &document{
-		fs:        osfs,
+		fs:        texFs,
 		files:     make(map[string]*File),
 		log:       log,
 		image:     image,

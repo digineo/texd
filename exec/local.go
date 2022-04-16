@@ -26,12 +26,6 @@ func (x *localExec) Run(ctx context.Context, log *zap.Logger) error {
 		return tex.CompilationError("invalid document", err, nil)
 	}
 
-	if len(args) < 2 {
-		return tex.UnknownError("unexpected command: too few arguments", nil, tex.KV{
-			"args": args,
-		})
-	}
-
 	if x.path != "" {
 		// in tests, we don't want to actually execute latexmk
 		args[0] = x.path

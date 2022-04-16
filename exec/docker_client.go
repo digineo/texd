@@ -29,12 +29,18 @@ type DockerClient struct {
 	log    *zap.Logger
 	cli    client.APIClient
 	images []types.ImageSummary
+
+	dirRewrite *baseDirRewrite
 }
 
 // NewDockerClient creates a new DockerClient. To configure the client,
 // use environment variables: DOCKER_HOST, DOCKER_API_VERSION,
 // DOCKER_CERT_PATH and DOCKER_TLS_VERIFY are supported.
-func NewDockerClient(log *zap.Logger) (h *DockerClient, err error) {
+//
+// When running in a Docker-in-Docker environment, baseDir is used to
+// determine the volume path on the Docker host, in order to mount
+// job directories correctly.
+func NewDockerClient(log *zap.Logger, baseDir string) (h *DockerClient, err error) {
 	cli, err := newClient()
 	if err != nil {
 		return nil, err
@@ -43,7 +49,14 @@ func NewDockerClient(log *zap.Logger) (h *DockerClient, err error) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &DockerClient{log, cli, nil}, nil
+	dc := &DockerClient{
+		log: log,
+		cli: cli,
+	}
+	if err := dc.configureDinD(baseDir); err != nil {
+		return nil, err
+	}
+	return dc, nil
 }
 
 // SetImages ensures that the given image tags are present on the
@@ -83,6 +96,9 @@ func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...
 		img, err := dc.findImage(ctx, tag)
 		if err != nil {
 			return nil, fmt.Errorf("lost previously pulled image: %v", err)
+		}
+		if img.ID == "" {
+			return nil, fmt.Errorf("lost previously pulled image (%s)", tag)
 		}
 		knownImages = append(knownImages, img)
 	}
@@ -182,11 +198,9 @@ func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cm
 		AutoRemove:     true,
 		NetworkMode:    "none",
 		ReadonlyRootfs: true,
-		Mounts: []mount.Mount{{
-			Type:   mount.TypeBind,
-			Source: wd,
-			Target: containerWd,
-		}},
+		Mounts: []mount.Mount{
+			dc.dirRewrite.MountConfig(wd),
+		},
 	}
 
 	worker, err := dc.cli.ContainerCreate(ctx, containerCfg, hostCfg, nil, nil, "")

@@ -57,3 +57,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.1.0 // indirect
 )
+
+replace github.com/spf13/afero => github.com/digineo/afero v1.8.3-0.20220418112931-7c60862cbc10
