@@ -7,19 +7,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestMiddleware(t *testing.T) {
 	t.Parallel()
 
-	var contextId string
+	var contextID string
 	captureContextID := func(w http.ResponseWriter, r *http.Request) {
 		t.Helper()
 
-		val, ok := r.Context().Value(ContextKey).(string)
+		val, ok := GetRequestID(r)
 		require.True(t, ok)
 		assert.NotEmpty(t, val)
-		contextId = val
+		contextID = val
 
 		w.WriteHeader(http.StatusOK)
 	}
@@ -32,5 +33,48 @@ func TestMiddleware(t *testing.T) {
 	headerId := w.Header().Get(HeaderKey)
 	require.NotEmpty(t, headerId)
 
-	assert.Equal(t, headerId, contextId)
+	assert.Equal(t, headerId, contextID)
+}
+
+func TestRequestIDField(t *testing.T) {
+	t.Parallel()
+
+	var ctxIDField zap.Field
+	captureContextID := func(w http.ResponseWriter, r *http.Request) {
+		t.Helper()
+		ctxIDField = RequestIDField(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}
+
+	w := httptest.NewRecorder()
+	RequestID(http.HandlerFunc(captureContextID)).ServeHTTP(w,
+		httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	headerId := w.Header().Get(HeaderKey)
+	require.NotEmpty(t, headerId)
+
+	assert.Equal(t, "request-id", ctxIDField.Key)
+	assert.Equal(t, headerId, ctxIDField.String)
+}
+
+func TestRequestIDField_missing(t *testing.T) {
+	t.Parallel()
+
+	var ctxIDField zap.Field
+	captureContextID := func(w http.ResponseWriter, r *http.Request) {
+		t.Helper()
+		ctxIDField = RequestIDField(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}
+
+	w := httptest.NewRecorder()
+	http.HandlerFunc(captureContextID).ServeHTTP(w,
+		httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	headerId := w.Header().Get(HeaderKey)
+	require.Empty(t, headerId)
+
+	assert.Equal(t, zap.Skip().Type, ctxIDField.Type)
 }

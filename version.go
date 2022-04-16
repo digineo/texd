@@ -22,22 +22,38 @@ _____    _   _ ____     texd version %s
 
 `
 
+type versionData struct{ version, commit, commitat, buildat, isdev string }
+
+var v = versionData{version, commit, commitat, buildat, isdev}
+
+func (d *versionData) Version() string {
+	if d.Development() {
+		return d.version + " (development)"
+	}
+	return d.version + " (release)"
+}
+
+func (d *versionData) Development() bool {
+	return d.isdev == "1"
+}
+
+func (d *versionData) PrintBanner(w io.Writer) {
+	fmt.Fprintf(w, banner, d.Version(), d.commit, d.commitat, d.buildat)
+}
+
 // Version returns a string describing the version. For release versions
 // this will contain the Git tag and commit ID. When used as library (or
 // in development), this may return just "development".
 func Version() string {
-	if Development() {
-		return version + " (development)"
-	}
-	return version + " (release)"
+	return v.Version()
 }
 
 func Development() bool {
-	return isdev == "1"
+	return v.Development()
 }
 
 // PrintBanner will write a small ASCII graphic and versioning
 // information to w.
 func PrintBanner(w io.Writer) {
-	fmt.Fprintf(w, banner, Version(), commit, commitat, buildat)
+	v.PrintBanner(w)
 }
