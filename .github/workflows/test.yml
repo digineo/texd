@@ -16,6 +16,9 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
 
+    # avoid running twice for branch-PRs
+    if: ${{ github.event_name == 'push' || github.event.pull_request.base.repo.full_name != github.event.pull_request.head.repo.full_name }}
+
     steps:
       - name: Setup Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
@@ -43,6 +46,9 @@ jobs:
   lint:
     name: Run linter
     runs-on: ubuntu-latest
+
+    # avoid running twice for branch-PRs
+    if: ${{ github.event_name == 'push' || github.event.pull_request.base.repo.full_name != github.event.pull_request.head.repo.full_name }}
 
     steps:
       - name: Setup Go ${{ env.GO_VERSION }}
