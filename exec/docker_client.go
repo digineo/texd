@@ -18,11 +18,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// newClient is swapped in tests
+var newClient = func() (client.APIClient, error) {
+	return client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+}
+
 // DockerClient wraps a Docker client instance and provides methods to
 // pull images and start containers.
 type DockerClient struct {
 	log    *zap.Logger
-	cli    *client.Client
+	cli    client.APIClient
 	images []types.ImageSummary
 }
 
@@ -30,7 +35,7 @@ type DockerClient struct {
 // use environment variables: DOCKER_HOST, DOCKER_API_VERSION,
 // DOCKER_CERT_PATH and DOCKER_TLS_VERIFY are supported.
 func NewDockerClient(log *zap.Logger) (h *DockerClient, err error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := newClient()
 	if err != nil {
 		return nil, err
 	}
@@ -157,13 +162,15 @@ func (dc *DockerClient) findAllowedImageID(tag string) string {
 	return ""
 }
 
+// containerWd is the work dir inside a (new) container
+const containerWd = "/texd"
+
 func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cmd []string) (string, error) {
 	id := dc.findAllowedImageID(tag)
 	if id == "" {
 		return "", fmt.Errorf("image %q not allowed", tag)
 	}
 
-	const containerWd = "/texd"
 	containerCfg := &container.Config{
 		Image:           id,
 		Cmd:             cmd,
@@ -193,6 +200,16 @@ func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cm
 	return worker.ID, nil
 }
 
+func (dc *DockerClient) waitForContainer(ctx context.Context, id string) (status int64, err error) {
+	statusCh, errCh := dc.cli.ContainerWait(ctx, id, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		return 0, err
+	case s := <-statusCh:
+		return s.StatusCode, nil
+	}
+}
+
 // Run creates a new Docker container from the given image tag, mounts the
 // working directory into it, and executes the given command in it.
 func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (string, error) {
@@ -215,7 +232,7 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 			logErr = fmt.Errorf("unable to retrieve logs: %w", err)
 			return
 		}
-		if _, err = stdcopy.StdCopy(io.Discard, &buf, out); err != nil {
+		if _, err = stdcopy.StdCopy(os.Stderr, &buf, out); err != nil {
 			logErr = fmt.Errorf("unable to read logs: %w", err)
 			return
 		}
@@ -225,14 +242,12 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 
-	status, errs := dc.cli.ContainerWait(ctx, id, container.WaitConditionNotRunning)
-	select {
-	case err := <-errs:
+	status, err := dc.waitForContainer(ctx, id)
+	if err != nil {
 		return "", fmt.Errorf("failed to run container: %w", err)
-	case s := <-status:
-		if s.StatusCode != 0 {
-			err = fmt.Errorf("container exited with status %d", s.StatusCode)
-		}
+	}
+	if status != 0 {
+		err = fmt.Errorf("container exited with status %d", status)
 	}
 
 	<-logsDone
