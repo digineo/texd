@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"path"
-	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types"
@@ -184,23 +181,6 @@ func (s *dockerClientSuite) TestFindImage_failure() {
 
 	_, err := s.subject.findImage(bg, "test:latest")
 	s.Require().EqualError(err, "test-list-error")
-}
-
-func parseMount(vol string) (m types.MountPoint) {
-	parts := strings.SplitN(vol, ":", 3)
-	if len(parts) != 2 {
-		panic("unsupported")
-	}
-	m.Source = parts[0]
-	m.Destination = parts[1]
-	if path.IsAbs(parts[0]) {
-		m.Type = mount.TypeBind
-	} else {
-		m.Type = mount.TypeVolume
-		m.Source = fmt.Sprintf("/var/lib/docker/volumes/%s/_data", parts[0])
-		m.Driver = "local"
-	}
-	return
 }
 
 func (s *dockerClientSuite) TestPull() {
