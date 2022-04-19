@@ -82,14 +82,14 @@ jobs:
           # need different token, RELEASE_TOKEN belongs to digineobot
           github-token: ${{ secrets.RELEASE_TOKEN }}
           script: |
-            const trigger = (ref, releaseType) => github.rest.actions.createWorkflowDispatch({
+            const trigger = (ref, type) => github.rest.actions.createWorkflowDispatch({
               owner:       context.repo.owner,
               repo:        context.repo.repo,
               workflow_id: 'release.yml',
               ref,
               inputs: {
-                goreleaser: false,
-                releaseType,
+                goreleaser: type === 'release' ? 'false' : 'true',
+                releaseType: type,
               }
             })
 

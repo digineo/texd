@@ -52,6 +52,8 @@ jobs:
       - name: Find latest tag
         uses: actions/github-script@v6
         with:
+          # need different token, RELEASE_TOKEN belongs to digineobot
+          github-token: ${{ secrets.RELEASE_TOKEN }}
           script: |
             const common = {
               owner: context.repo.owner,
@@ -77,7 +79,7 @@ jobs:
               workflow_id: 'release.yml',
               ref:         releaseRef,
               inputs: {
-                goreleaser:  false,
+                goreleaser:  'false',
                 releaseType: 'release',
               }
             })
@@ -88,7 +90,7 @@ jobs:
                 workflow_id: 'release.yml',
                 ref:         releaseRef,
                 inputs: {
-                  goreleaser:  false,
+                  goreleaser:  'false',
                   releaseType: 'dev',
                 }
               })
