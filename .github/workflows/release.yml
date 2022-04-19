@@ -74,7 +74,7 @@ jobs:
         id: release-meta
         with:
           script: |
-            const isRelease = context.inputs.releaseType === 'release' ? '1' : '0'
+            const isRelease = context.payload.inputs.releaseType === 'release' ? '1' : '0'
 
             return { isRelease }
 
