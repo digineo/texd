@@ -1,0 +1,68 @@
+name: Update latest
+
+on:
+  workflow_dispatch:
+
+  workflow_run:
+    workflows:
+      - Base Image
+    types:
+      - completed
+
+jobs:
+  update-latest:
+    name: Rebuild release images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Find latest tag
+        uses: actions/github-script@v6
+        with:
+          # need different token, RELEASE_TOKEN belongs to digineobot
+          github-token: ${{ secrets.RELEASE_TOKEN }}
+          script: |
+            const { data: { tag_name: releaseTag } } = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+            })
+            console(`latest release tag name: ${releaseTag}`)
+
+            const { data: { object: { sha: releaseRef } } } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              ref:   `tags/${releaseTag}`,
+            })
+            console(`latest release commit: ${releaseRef}`)
+
+            const { data: { object: { sha: masterRef } } } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              ref:   'heads/master',
+            })
+            console(`master release commit: ${masterRef}`)
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner:       context.repo.owner,
+              repo:        context.repo.repo,
+              workflow_id: 'release.yml',
+              ref:         releaseRef,
+              inputs: {
+                goreleaser:  'false',
+                releaseType: 'release',
+              }
+            })
+            console(`triggered release for ${releaseTag} (${releaseRef})`)
+
+            if (releaseRef !== masterRef) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner:       context.repo.owner,
+                repo:        context.repo.repo,
+                workflow_id: 'release.yml',
+                ref:         releaseRef,
+                inputs: {
+                  goreleaser:  'false',
+                  releaseType: 'dev',
+                }
+              })
+              console(`triggered dev-release for master (${masterRef})`)
+            }

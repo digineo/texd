@@ -10,7 +10,7 @@ on:
 
 jobs:
   base:
-    name: Create digineode/texd:base
+    name: Create base image
     runs-on: ubuntu-latest
     steps:
       - name: Setup QEMU
@@ -40,58 +40,3 @@ jobs:
           push: true
           tags: digineode/texd:base
           context: .
-
-  release:
-    name: Create digineode/texd:v*
-    runs-on: ubuntu-latest
-    needs: [base]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Find latest tag
-        uses: actions/github-script@v6
-        with:
-          # need different token, RELEASE_TOKEN belongs to digineobot
-          github-token: ${{ secrets.RELEASE_TOKEN }}
-          script: |
-            const common = {
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-            }
-
-            const { data: { tag_name: releaseTag } } = await github.rest.repos.getLatestRelease({
-              ...common,
-            })
-
-            const { data: { object: { sha: releaseRef } } } = await github.rest.git.getRef({
-              ...common,
-              ref: `tags/${releaseTag}`,
-            })
-
-            const { data: { object: { sha: masterRef } } } = await github.rest.git.getRef({
-              ...common,
-              ref: 'heads/master',
-            })
-
-            await github.rest.actions.createWorkflowDispatch({
-              ...common,
-              workflow_id: 'release.yml',
-              ref:         releaseRef,
-              inputs: {
-                goreleaser:  'false',
-                releaseType: 'release',
-              }
-            })
-
-            if (releaseRef !== masterRef) {
-              await github.rest.actions.createWorkflowDispatch({
-                ..common,
-                workflow_id: 'release.yml',
-                ref:         releaseRef,
-                inputs: {
-                  goreleaser:  'false',
-                  releaseType: 'dev',
-                }
-              })
-            }
