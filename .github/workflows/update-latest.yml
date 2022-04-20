@@ -45,7 +45,7 @@ jobs:
               owner:       context.repo.owner,
               repo:        context.repo.repo,
               workflow_id: 'release.yml',
-              ref:         releaseRef,
+              ref:         releaseTag,
               inputs: {
                 goreleaser:  'false',
                 releaseType: 'release',
@@ -58,7 +58,7 @@ jobs:
                 owner:       context.repo.owner,
                 repo:        context.repo.repo,
                 workflow_id: 'release.yml',
-                ref:         releaseRef,
+                ref:         'master',
                 inputs: {
                   goreleaser:  'false',
                   releaseType: 'dev',
