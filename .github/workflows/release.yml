@@ -21,7 +21,7 @@ jobs:
     name: Create Github release
     runs-on: ubuntu-latest
 
-    if: inputs.releaseType == 'release' && inputs.goreleaser
+    if: github.event.inputs.releaseType == 'release' && github.event.inputs.goreleaser
 
     steps:
       - name: Checkout code
@@ -78,7 +78,6 @@ jobs:
         with:
           script: |
             const isRelease = context.payload.inputs.releaseType === 'release' ? '1' : '0'
-
             return { isRelease }
 
       - name: Docker image
