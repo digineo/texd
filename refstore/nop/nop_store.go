@@ -1,10 +1,10 @@
 // Package nop implements a no-op reference store adapter.
-// It does nothing, can't be configured and can't be created with
-// refstore.NewStore.
+// It does nothing, and can't be configured.
 package nop
 
 import (
 	"io"
+	"net/url"
 
 	"github.com/digineo/texd/refstore"
 	"go.uber.org/zap"
@@ -12,7 +12,7 @@ import (
 
 type nop struct{}
 
-func New() (refstore.Adapter, error) {
+func New(_ *url.URL, _ refstore.RetentionPolicy) (refstore.Adapter, error) {
 	return &nop{}, nil
 }
 

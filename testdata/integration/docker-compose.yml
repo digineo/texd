@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  texd:
+    image: digineode/texd:latest
+    command: --reference-store=memcached://memcached:11211?expiration=5s
+    depends_on:
+      - memcached
+    ports:
+      - 127.0.0.1:2201:2201
+    links:
+      - memcached
+
+  memcached:
+    image: memcached:1-alpine
+    command: memcached -m 16 -vv

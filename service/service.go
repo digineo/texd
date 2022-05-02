@@ -75,7 +75,7 @@ func newService(opts Options, log *zap.Logger) *service {
 		log:            log,
 	}
 	if svc.refs == nil {
-		svc.refs, _ = nop.New()
+		svc.refs, _ = nop.New(nil, nil)
 	}
 	return svc
 }
