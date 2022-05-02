@@ -515,11 +515,28 @@ $ texd --reference-store=dir://./refs
 ```
 
 The actual syntax is `--reference-store=DSN`, where storage adapters are identified through and
-configured with a DSN (*data source name*, a URL). Currently there is only one implementation
-(the `dir` adapter), which only takes a path as argument.
+configured with a DSN (*data source name*, a URL). Currently there are only handful implementations:
 
-It is not unfeasable to imagine further adapters being available in the future, such as key/value
-stores (`redis://`, `memcached://`), object storages (`s3://`), or similar.
+1. The `dir://` adapter ([docs][docs-dir]), which stores reference files on disk in a specified
+   directory. Conicidentally, this adapter also provides an in-memory adapter (`memory://`),
+   courtesy of the [spf13/afero][afero] package.
+
+2. The `memcached://` adapter ([docs][docs-memcached]), which stores, you may have guessed it,
+   reference files in a [Memcached][memcached] instance or cluster.
+
+3. The `nop://` adapter ([docs][docs-nop]), which―for the sake of completenes sake―implements a
+   no-op store (i.e. attempts to store reference file into is, or load files from it fail silently).
+   This adapter is used as fallback if you don't configure any other adapter.
+
+[docs-dir]: https://pkg.go.dev/github.com/digineo/texd/refstore/dir
+[afero]: https://github.com/spf13/afero
+[docs-memcached]: https://pkg.go.dev/github.com/digineo/texd/refstore/memcached
+[memcached]: https://memcached.org/
+[docs-nop]: https://pkg.go.dev/github.com/digineo/texd/refstore/nop
+
+It is not unfeasable to imagine further adapters being available in the future, such as additional
+key/value stores (`redis://`), object storages (`s3://`, `minio://`), or even RDMS (`postgresql://`,
+`mariadb://`).
 
 ### Data retention
 
@@ -552,6 +569,8 @@ Notes:
 - Total file size is measured in bytes, common suffixes (100KB, 2MiB, 1.3GB) work as expected.
 - To disable either limit, set the value to 0 (e.g. `--rp-access-items=0`).
 - It is an error to disable both limits (in this case just use `--retention-policy=keep`).
+- Currently, only the `dir://` (and `memory://`) adapter support a retention policy; the
+ `memcached://` adapter delegates this responsibility to the Memcached server.
 
 ## History
 

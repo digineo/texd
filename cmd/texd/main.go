@@ -15,7 +15,8 @@ import (
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/refstore"
-	_ "github.com/digineo/texd/refstore/dir" // sideeffect
+	_ "github.com/digineo/texd/refstore/dir"
+	_ "github.com/digineo/texd/refstore/memcached"
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
@@ -176,7 +177,7 @@ func main() {
 			opts.RefStore = adapter
 		}
 	} else {
-		opts.RefStore, _ = nop.New()
+		opts.RefStore, _ = nop.New(nil, nil)
 	}
 
 	if len(images) > 0 {
