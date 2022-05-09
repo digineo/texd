@@ -23,7 +23,7 @@ func (m *mockPolicy) Prime(refs []*refstore.FileRef) (evicted []*refstore.FileRe
 	return nil
 }
 
-func (m *mockPolicy) Touch(id refstore.Identifier)                          { return }
+func (m *mockPolicy) Touch(id refstore.Identifier)                          {}
 func (m *mockPolicy) Add(*refstore.FileRef) (evicted []*refstore.FileRef)   { return }
 func (m *mockPolicy) Peek(refstore.Identifier) (existing *refstore.FileRef) { return }
 
