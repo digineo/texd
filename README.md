@@ -384,8 +384,6 @@ Content-Length: 287
 
 ### Metrics
 
-> TODO: not implemented yet
-
 For monitoring, texd provides a Prometheus endpoint at `/metrics`:
 
 ```console
@@ -440,7 +438,7 @@ of data you need to transmit with each render request. Following a back-of-the-e
   request) + 999×100 Byte (50 Byte per reference hash for subsequent requests) = 599.9 kB.
 
 The feature in texd parlance is called "reference store", and you may think of it as a cache. It
-saves files server-side (e.g. on disk) and retreives them on-demand, if you request such a file
+saves files server-side (e.g. on disk) and retrieves them on-demand, if you request such a file
 reference.
 
 A reference hash is simply the Base64-encoded SHA256 checksum of the file contents, prefixed with
@@ -518,13 +516,13 @@ The actual syntax is `--reference-store=DSN`, where storage adapters are identif
 configured with a DSN (*data source name*, a URL). Currently there are only handful implementations:
 
 1. The `dir://` adapter ([docs][docs-dir]), which stores reference files on disk in a specified
-   directory. Conicidentally, this adapter also provides an in-memory adapter (`memory://`),
+   directory. Coincidentally, this adapter also provides an in-memory adapter (`memory://`),
    courtesy of the [spf13/afero][afero] package.
 
 2. The `memcached://` adapter ([docs][docs-memcached]), which stores, you may have guessed it,
    reference files in a [Memcached][memcached] instance or cluster.
 
-3. The `nop://` adapter ([docs][docs-nop]), which―for the sake of completenes sake―implements a
+3. The `nop://` adapter ([docs][docs-nop]), which―for the sake of completeness sake―implements a
    no-op store (i.e. attempts to store reference file into is, or load files from it fail silently).
    This adapter is used as fallback if you don't configure any other adapter.
 
@@ -534,8 +532,8 @@ configured with a DSN (*data source name*, a URL). Currently there are only hand
 [memcached]: https://memcached.org/
 [docs-nop]: https://pkg.go.dev/github.com/digineo/texd/refstore/nop
 
-It is not unfeasable to imagine further adapters being available in the future, such as additional
-key/value stores (`redis://`), object storages (`s3://`, `minio://`), or even RDMS (`postgresql://`,
+It is not unfeasible to imagine further adapters being available in the future, such as additional
+key/value stores (`redis://`), object storages (`s3://`, `minio://`), or even RDBMS (`postgresql://`,
 `mariadb://`).
 
 ### Data retention
@@ -545,7 +543,7 @@ texd supports three different retention policies:
 1. `keep` (or `none`) will keep all file references forever. This is the default setting.
 2. `purge-on-start` (or just `purge`) will delete file references once on startup.
 3. `access` will keep an access list with LRU semantics, and delete file references, either if
-   a max. number of items is reached, or if the total size of items exeedes a threshold, or both.
+   a max. number of items is reached, or if the total size of items exceeds a threshold, or both.
 
 To select a specific retention policy, use the `--retention-policy` CLI flag:
 
@@ -592,7 +590,7 @@ form of art. But looking back at using LaTeX for now over a decade, I still feel
 
 ## Future
 
-One whishlist item is asynchronous rendering: Consider rendering monthly invoices on the first
+One wishlist's item is asynchronous rendering: Consider rendering monthly invoices on the first
 of each month; depending on the amount of customers/contracts/invoice positions, this can easily
 mean you need to render a few thousand PDF documents.
 

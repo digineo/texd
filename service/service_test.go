@@ -128,7 +128,7 @@ func (suite *testSuite) TestService_singleFile_explicitInput() {
 	})
 }
 
-func (suite *testSuite) TestService_singleFile_unknownEcplicitInput() {
+func (suite *testSuite) TestService_singleFile_unknownExplicitInput() {
 	suite.runServiceTestCase(serviceTestCase{
 		files:        addDirectory("../testdata/simple", nil),
 		statusCode:   http.StatusUnprocessableEntity,

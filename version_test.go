@@ -37,7 +37,7 @@ _____    _   _ ____     texd version 0.99-42-dirty (development)
 	assert.Equal(t, expected, actual.String())
 }
 
-func TestGloabls(t *testing.T) {
+func TestGlobals(t *testing.T) {
 	assert.True(t, Development())
 	assert.Equal(t, "development (development)", Version())
 

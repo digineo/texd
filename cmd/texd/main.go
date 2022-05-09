@@ -97,7 +97,7 @@ func parseFlags() []string {
 	fs.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
 		"maximum rendering time")
 	fs.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
-		"maximum `number` of parallel rendereing jobs")
+		"maximum `number` of parallel rendering jobs")
 	fs.StringVar(&maxJobSize, "max-job-size", maxJobSize,
 		"maximum size of job, a value <= 0 disables check")
 	fs.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
@@ -282,7 +282,7 @@ func setupLogger() (*zap.Logger, func()) {
 	log, err := cfg.Build()
 	if err != nil {
 		// we don't have a logger yet, so logging the error
-		// proves to be complicatet :)
+		// proves to be complicated :)
 		panic(err)
 	}
 

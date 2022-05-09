@@ -383,7 +383,7 @@ func cleanpath(name string) (clean string, ok bool) {
 		/* forbidden file name */ isForbidden(name) ||
 		/* directory traversal */ strings.HasPrefix(clean, "..") ||
 		/* absolute paths */ strings.HasPrefix(clean, "/") ||
-		/* easyly abusable TeX chars */ strings.ContainsAny(clean, "\\%$_^&`") {
+		/* easily abusable TeX chars */ strings.ContainsAny(clean, "\\%$_^&`") {
 		return "", false
 	}
 	ok = true

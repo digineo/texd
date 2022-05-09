@@ -72,7 +72,7 @@ func TestIsMainCandidate(t *testing.T) {
 			"input.tex", "main.tex", "document.tex", "foo.tex",
 			"00-intro.tex",
 			// XXX: We don't double check for file names with special chars
-			// iu isMainCandidate(). They should be filtered out befor even
+			// iu isMainCandidate(). They should be filtered out before even
 			// reaching this point (see cleanpath).
 			"zz_outro.tex", "ca$h.tex",
 		} {

@@ -24,7 +24,7 @@ type MockExec struct {
 //
 //	service.Executor := exec.Mock(true, pdfFixture)
 //
-// Imprtant note: Mock will panic if the document's main input file
+// Important note: Mock will panic if the document's main input file
 // does not contain a dot + file extension, of if the result content
 // can't be written.
 func Mock(shouldFail bool, resultContents string) func(Document) Exec {
