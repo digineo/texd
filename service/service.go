@@ -74,6 +74,9 @@ func newService(opts Options, log *zap.Logger) *service {
 		refs:           opts.RefStore,
 		log:            log,
 	}
+	if svc.queueTimeout <= 0 {
+		svc.queueTimeout = time.Second
+	}
 	if svc.refs == nil {
 		svc.refs, _ = nop.New(nil, nil)
 	}

@@ -2,18 +2,13 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/digineo/texd/tex"
 )
 
 func (svc *service) acquire(ctx context.Context) error {
 	// don't wait too long for other jobs to complete.
-	maxWait := svc.queueTimeout
-	if maxWait < 0 {
-		maxWait = time.Second
-	}
-	ctx, cancel := context.WithTimeout(ctx, maxWait)
+	ctx, cancel := context.WithTimeout(ctx, svc.queueTimeout)
 	defer cancel()
 
 	select {
