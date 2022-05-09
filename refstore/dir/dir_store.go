@@ -36,6 +36,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var defaultFs afero.Fs = afero.OsFs{} // swapped in tests
+
 func init() {
 	refstore.RegisterAdapter("dir", New)
 	refstore.RegisterAdapter("memory", NewMemory)
@@ -60,7 +62,7 @@ type dir struct {
 // limits are reached).
 func New(config *url.URL, rp refstore.RetentionPolicy) (refstore.Adapter, error) {
 	d := &dir{
-		fs:   afero.OsFs{},
+		fs:   defaultFs,
 		path: pathFromURL(config),
 		rp:   rp,
 	}
