@@ -9,6 +9,8 @@ import (
 )
 
 func TestErrorWithCategory(t *testing.T) {
+	t.Parallel()
+
 	{
 		err := ErrWithCategory{message: "message"}
 		assert.EqualError(t, &err, "message")
@@ -56,6 +58,8 @@ func TestErrorWithCategory(t *testing.T) {
 }
 
 func TestExtendError_blank(t *testing.T) {
+	t.Parallel()
+
 	{
 		err := InputError("message", nil, nil)
 		ExtendError(err, nil)
@@ -79,6 +83,8 @@ func TestExtendError_blank(t *testing.T) {
 }
 
 func TestExtendError_extendsErr(t *testing.T) {
+	t.Parallel()
+
 	{
 		err := InputError("message", nil, nil)
 		ExtendError(err, KV{"foo": "bar"})
@@ -97,7 +103,42 @@ func TestExtendError_extendsErr(t *testing.T) {
 }
 
 func TestExtendError_onlyCatErrors(t *testing.T) {
+	t.Parallel()
+
 	err := io.EOF
 	ExtendError(err, KV{"foo": "bar"})
 	assert.True(t, err == io.EOF)
+}
+
+func TestErrorIs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exhaustive check for input error", func(t *testing.T) {
+		t.Parallel()
+		err := InputError("test", nil, nil)
+		assert.False(t, IsUnknownError(err))
+		assert.True(t, IsInputError(err))
+		assert.False(t, IsCompilationError(err))
+		assert.False(t, IsQueueError(err))
+		assert.False(t, IsReferenceError(err))
+	})
+
+	t.Run("shallow test for other error categories", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, IsReferenceError(ReferenceError(nil)))
+		assert.True(t, IsCompilationError(CompilationError("test", nil, nil)))
+		assert.True(t, IsQueueError(QueueError("test", nil, nil)))
+		assert.True(t, IsUnknownError(UnknownError("test", nil, nil)))
+	})
+
+	t.Run("non-category errors", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, IsUnknownError(io.EOF))
+		assert.False(t, IsInputError(io.EOF))
+		assert.False(t, IsCompilationError(io.EOF))
+		assert.False(t, IsQueueError(io.EOF))
+		assert.False(t, IsReferenceError(io.EOF))
+	})
 }

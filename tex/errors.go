@@ -82,6 +82,19 @@ func UnknownError(message string, cause error, extra KV) error {
 	return newCategoryError(0, message, cause, extra)
 }
 
+func errorIs(err error, cat errCategory) bool {
+	if catErr, ok := err.(*ErrWithCategory); ok {
+		return catErr.cat == cat
+	}
+	return false
+}
+
+func IsUnknownError(err error) bool     { return errorIs(err, 0) }
+func IsInputError(err error) bool       { return errorIs(err, inputErr) }
+func IsCompilationError(err error) bool { return errorIs(err, compilationErr) }
+func IsQueueError(err error) bool       { return errorIs(err, queueErr) }
+func IsReferenceError(err error) bool   { return errorIs(err, referenceErr) }
+
 func (err *ErrWithCategory) Error() string {
 	if err.cause == nil {
 		return err.message

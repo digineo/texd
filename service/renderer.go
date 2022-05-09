@@ -76,7 +76,11 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	}()
 
 	if err := svc.addFiles(log, doc, req); err != nil {
-		log.Error("failed to add files", zap.Error(err))
+		if tex.IsReferenceError(err) {
+			log.Warn("unknown file reference")
+		} else {
+			log.Error("failed to add files", zap.Error(err))
+		}
 		return err
 	}
 
