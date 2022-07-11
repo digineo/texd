@@ -182,7 +182,7 @@ func main() {
 
 	if len(images) > 0 {
 		log.Info("using docker", zap.Strings("images", images))
-		cli, err := exec.NewDockerClient(log)
+		cli, err := exec.NewDockerClient(log, tex.JobBaseDir())
 		if err != nil {
 			log.Fatal("error connecting to dockerd", zap.Error(err))
 		}

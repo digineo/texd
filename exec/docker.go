@@ -7,8 +7,12 @@ import (
 	"go.uber.org/zap"
 )
 
+type dockerRunner interface {
+	Run(ctx context.Context, tag, wd string, cmd []string) (string, error)
+}
+
 type dockerExec struct {
-	cli *DockerClient
+	cli dockerRunner
 	baseExec
 }
 

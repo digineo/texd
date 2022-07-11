@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/digineo/texd/tex"
@@ -43,12 +44,6 @@ func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
 		return tex.CompilationError("invalid document", err, nil)
 	}
 
-	if len(args) < 2 {
-		return tex.UnknownError("unexpected command: too few arguments", nil, tex.KV{
-			"args": args,
-		})
-	}
-
 	log.Debug("simlate running latexmk", zap.Strings("args", args[1:]))
 	main, _ := x.doc.MainInput() // would have failed in x.extract()
 	dot := strings.LastIndexByte(main, '.')
@@ -67,11 +62,11 @@ func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
 		panic("can't add files to document")
 	}
 	if err := adder.AddFile(outfile, x.ResultContents); err != nil {
-		panic("failed to store result file")
+		panic(fmt.Errorf("failed to store result file: %w", err))
 	}
 
 	if x.ShouldFail {
-		return tex.CompilationError("compilation failed", err, tex.KV{
+		return tex.CompilationError("compilation failed", nil, tex.KV{
 			"cmd":  args[0],
 			"args": args[1:],
 		})

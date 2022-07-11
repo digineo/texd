@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"path"
+	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/docker/docker/api/types"
@@ -14,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -35,7 +40,7 @@ func (m *apiMock) ImageList(
 	args := m.Called(ctx, options)
 	// channel trickery to allow TestSetImages create different return values
 	// (and work around a limitation of the mock framework)
-	return <-args.Get(0).(chan []types.ImageSummary), args.Error(1)
+	return <-args.Get(0).(chan []types.ImageSummary), <-args.Get(1).(chan error)
 }
 
 func (m *apiMock) ContainerInspect(
@@ -121,7 +126,10 @@ func (s *dockerClientSuite) TestNewDockerClient() {
 	}
 	defer func() { newClient = oldClient }()
 
-	cli, err := NewDockerClient(nil)
+	// short-circuit configureDinD()
+	defer s.prepareFs(false, "")()
+
+	cli, err := NewDockerClient(nil, "")
 	s.Require().NoError(err)
 	s.Require().NotNil(cli)
 	s.Assert().Equal(s.cli, cli.cli)
@@ -164,7 +172,10 @@ func (s *dockerClientSuite) TestFindImage() {
 	imgCh <- localImages
 	close(imgCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, nil)
+	errCh := make(chan error)
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
 
 	img, err := s.subject.findImage(bg, tag)
 	s.Require().NoError(err)
@@ -176,11 +187,193 @@ func (s *dockerClientSuite) TestFindImage_failure() {
 	imgCh <- []types.ImageSummary{}
 	close(imgCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).
-		Return(imgCh, errors.New("test-list-error"))
+	errCh := make(chan error, 1)
+	errCh <- errors.New("test-list-error")
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
 
 	_, err := s.subject.findImage(bg, "test:latest")
 	s.Require().EqualError(err, "test-list-error")
+}
+
+func (s *dockerClientSuite) prepareFs(inContainer bool, cidFileContent string) func() {
+	fs := afero.NewMemMapFs()
+	if inContainer {
+		err := afero.WriteFile(fs, "/.dockerenv", nil, 0644)
+		s.Require().NoError(err)
+
+		if cidFileContent != "" {
+			err = afero.WriteFile(fs, "/container.id", []byte(cidFileContent), 0644)
+			s.Require().NoError(err)
+		}
+	}
+
+	dockerFs = fs
+	return func() {
+		dockerFs = afero.NewOsFs()
+	}
+}
+
+func parseMount(vol string) (m types.MountPoint) {
+	parts := strings.SplitN(vol, ":", 3)
+	if len(parts) != 2 {
+		panic("unsupported")
+	}
+	m.Source = parts[0]
+	m.Destination = parts[1]
+	if path.IsAbs(parts[0]) {
+		m.Type = mount.TypeBind
+	} else {
+		m.Type = mount.TypeVolume
+		m.Source = fmt.Sprintf("/var/lib/docker/volumes/%s/_data", parts[0])
+		m.Driver = "local"
+	}
+	return
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_outsideContainer() {
+	defer s.prepareFs(false, "")()
+
+	s.Require().NoError(s.subject.configureDinD("/texd"))
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_blankBaseDir() {
+	defer s.prepareFs(true, "")()
+
+	s.Require().NoError(s.subject.configureDinD(""))
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+type failFs struct {
+	afero.Fs
+	fails map[string]error
+}
+
+func (fs *failFs) Open(filename string) (afero.File, error) {
+	if err := fs.fails[filename]; err != nil {
+		return nil, err
+	}
+	return fs.Fs.Open(filename)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_unreadableCIDFile() {
+	hostname = func() (string, error) { return "", syscall.EFAULT }
+	defer func() { hostname = os.Hostname }()
+
+	defer s.prepareFs(true, "id")()
+	dockerFs = &failFs{dockerFs, map[string]error{
+		"/container.id": io.ErrUnexpectedEOF,
+	}}
+
+	s.Require().EqualError(s.subject.configureDinD("/"),
+		"cannot determine texd container ID: bad address")
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_invalidCID() {
+	defer s.prepareFs(true, "id")()
+
+	s.cli.On("ContainerInspect", bg, "id").Return(
+		types.ContainerJSON{},
+		client.ErrorConnectionFailed("localhost"))
+
+	s.Require().EqualError(s.subject.configureDinD("/"),
+		"cannot determine texd container: Cannot connect to the Docker daemon at localhost. Is the docker daemon running?")
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_missingWorkdirVolume() {
+	defer s.prepareFs(true, "id")()
+
+	s.cli.On("ContainerInspect", bg, "id").Return(
+		types.ContainerJSON{}, nil)
+
+	s.Require().EqualError(s.subject.configureDinD("/texd"),
+		"missing Docker volume or bind mount for work directory")
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_withBindMount() {
+	defer s.prepareFs(true, "our-id")()
+
+	s.cli.On("ContainerInspect", bg, "our-id").Return(
+		types.ContainerJSON{
+			Mounts: []types.MountPoint{
+				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+				parseMount("/srv/texd/work:/texd"),
+			},
+		},
+		nil)
+
+	s.Assert().Nil(s.subject.dirRewrite)
+	s.Require().NoError(s.subject.configureDinD("/texd"))
+	s.Assert().EqualValues(&baseDirRewrite{
+		src: "/srv/texd/work",
+		dst: "/texd",
+	}, s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_nonLocalDriver() {
+	defer s.prepareFs(true, "id")()
+
+	s.cli.On("ContainerInspect", bg, "id").Return(
+		types.ContainerJSON{
+			Mounts: []types.MountPoint{{
+				Type:        mount.TypeVolume,
+				Driver:      "div/0",
+				Destination: "/texd",
+			}},
+		},
+		nil)
+
+	s.Require().EqualError(s.subject.configureDinD("/texd"),
+		"div/0 volume binds are currently not supported")
+	s.Assert().Nil(s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_withVolume() {
+	defer s.prepareFs(true, "our-id")()
+
+	s.cli.On("ContainerInspect", bg, "our-id").Return(
+		types.ContainerJSON{
+			Mounts: []types.MountPoint{
+				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+				parseMount("texd-work:/texd"),
+			},
+		},
+		nil)
+
+	s.Assert().Nil(s.subject.dirRewrite)
+	s.Require().NoError(s.subject.configureDinD("/texd"))
+	s.Assert().EqualValues(&baseDirRewrite{
+		src: "/var/lib/docker/volumes/texd-work/_data",
+		dst: "/texd",
+	}, s.subject.dirRewrite)
+}
+
+func (s *dockerClientSuite) TestConfigureDinD_withoutCIDFile() {
+	defer s.prepareFs(true, "")()
+
+	hostname, err := os.Hostname()
+	s.Require().NoError(err)
+
+	s.cli.On("ContainerInspect", bg, hostname).Return(
+		types.ContainerJSON{
+			Mounts: []types.MountPoint{
+				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+				parseMount("/srv/texd/work:/texd"),
+			},
+		},
+		nil)
+
+	s.Assert().Nil(s.subject.dirRewrite)
+	s.Require().NoError(s.subject.configureDinD("/texd"))
+	s.Assert().EqualValues(&baseDirRewrite{
+		src: "/srv/texd/work",
+		dst: "/texd",
+	}, s.subject.dirRewrite)
 }
 
 func (s *dockerClientSuite) TestPull() {
@@ -219,13 +412,83 @@ func (s *dockerClientSuite) TestSetImages() {
 	}}
 	close(imgCh)
 
-	p := io.NopCloser(&bytes.Buffer{}) // for progress reporter
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, nil)
-	s.cli.On("ImagePull", bg, "test:v4", types.ImagePullOptions{}).Return(p, nil)
+	errCh := make(chan error)
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v4", types.ImagePullOptions{}).
+		Return(io.NopCloser(&bytes.Buffer{}), nil)
 
 	found, err := s.subject.SetImages(bg, false, "test:v3", "test:v4")
 	s.Require().NoError(err)
 	s.Assert().ElementsMatch([]string{"test:v3", "test:v4", "test:latest"}, found)
+}
+
+func (s *dockerClientSuite) TestSetImages_errFindImage() {
+	imgCh := make(chan []types.ImageSummary)
+	close(imgCh)
+
+	errCh := make(chan error, 1)
+	errCh <- errors.New("unable to resolve")
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).
+		Return(imgCh, errCh)
+
+	found, err := s.subject.SetImages(bg, false, "test:v0")
+	s.Require().EqualError(err, "unable to resolve")
+	s.Assert().Empty(found)
+}
+
+func (s *dockerClientSuite) TestSetImages_errPullImage() {
+	imgCh := make(chan []types.ImageSummary, 1)
+	imgCh <- nil // find(test:v0) → not found → pull
+	close(imgCh)
+
+	errCh := make(chan error)
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
+		Return(io.NopCloser(&bytes.Buffer{}), errors.New("connection reset"))
+
+	found, err := s.subject.SetImages(bg, false, "test:v0")
+	s.Require().EqualError(err, "connection reset")
+	s.Assert().Empty(found)
+}
+
+func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
+	imgCh := make(chan []types.ImageSummary)
+	close(imgCh)
+
+	errCh := make(chan error, 2)
+	errCh <- nil
+	errCh <- errors.New("image-list-err")
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
+		Return(io.NopCloser(&bytes.Buffer{}), nil)
+
+	found, err := s.subject.SetImages(bg, true, "test:v0")
+	s.Require().EqualError(err, "lost previously pulled image: image-list-err")
+	s.Assert().Empty(found)
+}
+
+func (s *dockerClientSuite) TestSetImages_errLosingImageB() {
+	imgCh := make(chan []types.ImageSummary)
+	close(imgCh)
+
+	errCh := make(chan error)
+	close(errCh)
+
+	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
+		Return(io.NopCloser(&bytes.Buffer{}), nil)
+
+	found, err := s.subject.SetImages(bg, true, "test:v0")
+	s.Require().EqualError(err, "lost previously pulled image (test:v0)")
+	s.Assert().Empty(found)
 }
 
 func (s *dockerClientSuite) mockContainerCreate(tag, wd string, cmd []string, runningID string, startErr error) {
@@ -318,4 +581,127 @@ func (s *dockerClientSuite) TestRun() {
 	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().NoError(err)
 	s.Assert().Empty(out) // simulating logs is hard, ignore for now
+}
+
+func (s *dockerClientSuite) TestRun_errContainerCreate() {
+	const runningID = "deadbeef"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, io.ErrClosedPipe)
+
+	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "failed to create container: io: read/write on closed pipe")
+	s.Assert().Equal("", out)
+}
+
+func (s *dockerClientSuite) TestRun_errRetreiveLogs() {
+	const runningID = "7ea"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, nil)
+
+	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+		ShowStderr: true,
+	}).Return(io.NopCloser(nil), errors.New("failed"))
+
+	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+		Return(nil)
+
+	statusCh := make(chan container.ContainerWaitOKBody, 1)
+	statusCh <- container.ContainerWaitOKBody{StatusCode: 0}
+	errCh := make(chan error)
+	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
+		Return(statusCh, errCh)
+
+	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "unable to retrieve logs: failed")
+	s.Assert().Equal("", out)
+}
+
+type failReader struct{ error }
+
+func (f *failReader) Read([]byte) (n int, err error) {
+	return 0, f.error
+}
+
+func (s *dockerClientSuite) TestRun_errReadLogs() {
+	const runningID = "7ea"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, nil)
+
+	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+		ShowStderr: true,
+	}).Return(io.NopCloser(&failReader{errors.New("copy failure")}), nil)
+
+	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+		Return(nil)
+
+	statusCh := make(chan container.ContainerWaitOKBody, 1)
+	statusCh <- container.ContainerWaitOKBody{StatusCode: 0}
+	errCh := make(chan error)
+	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
+		Return(statusCh, errCh)
+
+	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "unable to read logs: copy failure")
+	s.Assert().Equal("", out)
+}
+
+func (s *dockerClientSuite) TestRun_errContainerStart() {
+	const runningID = "c0ffee"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, nil)
+
+	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+		ShowStderr: true,
+	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
+
+	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+		Return(errors.New("dockerd busy"))
+
+	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "failed to start container: dockerd busy")
+}
+
+func (s *dockerClientSuite) TestRun_errWaitForContainer() {
+	const runningID = "c0ffee"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, nil)
+
+	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+		ShowStderr: true,
+	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
+
+	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+		Return(nil)
+
+	statusCh := make(chan container.ContainerWaitOKBody)
+	errCh := make(chan error, 1)
+	errCh <- errors.New("unexpected restart")
+	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
+		Return(statusCh, errCh)
+
+	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "failed to run container: unexpected restart")
+}
+
+func (s *dockerClientSuite) TestRun_errExitStatus() {
+	const runningID = "c0ffee"
+	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
+		runningID, nil)
+
+	var logs bytes.Buffer
+	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+		ShowStderr: true,
+	}).Return(io.NopCloser(&logs), nil)
+
+	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+		Return(nil)
+
+	statusCh := make(chan container.ContainerWaitOKBody, 1)
+	statusCh <- container.ContainerWaitOKBody{StatusCode: 127}
+	errCh := make(chan error, 1)
+	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
+		Return(statusCh, errCh)
+
+	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
+	s.Require().EqualError(err, "container exited with status 127")
 }
