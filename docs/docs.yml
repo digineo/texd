@@ -1,0 +1,14 @@
+---
+file: index.md
+children:
+  - file: operation-modes.md
+  - file: cli-options.md
+  - title: HTTP API
+    children:
+      - file: http-api/render.md
+      - file: http-api/status.md
+      - file: http-api/metrics.md
+      - file: http-api/web-ui.md
+  - file: reference-store.md
+  - file: history.md
+  - file: future.md

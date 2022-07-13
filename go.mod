@@ -3,6 +3,8 @@ module github.com/digineo/texd
 go 1.18
 
 require (
+	github.com/Depado/bfchroma/v2 v2.0.0
+	github.com/alecthomas/chroma/v2 v2.2.0
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d
 	github.com/docker/docker v20.10.17+incompatible
@@ -12,11 +14,13 @@ require (
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/opencontainers/image-spec v1.0.2
 	github.com/prometheus/client_golang v1.12.2
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/spf13/afero v1.8.2
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	github.com/thediveo/enumflag v0.10.1
 	go.uber.org/zap v1.21.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -25,6 +29,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
@@ -54,7 +59,6 @@ require (
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.1.0 // indirect
 )
 

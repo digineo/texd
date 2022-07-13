@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/digineo/texd/docs"
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/metrics"
 	"github.com/digineo/texd/refstore"
@@ -87,6 +88,7 @@ func (svc *service) routes() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
+	r.PathPrefix("/docs").Handler(http.StripPrefix("/docs", docs.Handler())).Methods(http.MethodGet)
 
 	render := http.Handler(http.HandlerFunc(svc.HandleRender))
 	if max := svc.maxJobSize; max > 0 {
