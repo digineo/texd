@@ -1,5 +1,5 @@
 ---
-file: index.md
+file: README.md
 children:
   - file: operation-modes.md
   - file: cli-options.md

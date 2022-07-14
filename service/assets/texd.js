@@ -65,7 +65,7 @@ const app = Vue.createApp({
   },
 
   beforeMount() {
-    setInterval(this.fetchStatus, 1000)
+    setInterval(this.fetchStatus, 5000)
     this.fetchStatus()
   },
 

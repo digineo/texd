@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"embed"
+	"io"
 	"net/http"
 )
 
@@ -13,12 +14,11 @@ var uiHTML []byte
 var assets embed.FS
 
 func HandleUI(res http.ResponseWriter, req *http.Request) {
-	buf := bytes.NewBuffer(uiHTML)
-
 	res.Header().Set("Content-Type", mimeTypeHTML)
 	res.Header().Set("X-Content-Type-Options", "nosniff")
 	res.WriteHeader(http.StatusOK)
-	_, _ = buf.WriteTo(res)
+
+	_, _ = io.Copy(res, bytes.NewReader(uiHTML))
 }
 
 func HandleAssets() http.Handler {

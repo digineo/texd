@@ -13,9 +13,18 @@
 
 <body>
   <div id="app" class="d-flex flex-column vh-100">
-    <nav class="navbar navbar-light bg-light">
+    <nav class="navbar navbar-light navbar-expand-sm bg-light">
       <div class="container-fluid">
-        <a href="/" class="navbar-brand me-auto">texd {{ version }}</a>
+        <a href="https://github.com/digineo/texd" class="navbar-brand">texd</a>
+
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="/">Play</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/docs">Documentation</a>
+          </li>
+        </ul>
 
         <div class="d-flex flex-column">
           <span>Queue: {{ queue[0] }}/{{ queue[1] }}</span>
@@ -23,6 +32,10 @@
             <div class="progress-bar" :style="{ width: `${queue[0]/queue[1]*100}%` }"></div>
           </div>
         </div>
+
+        <span class="navbar-text">
+          {{ version }}
+        </span>
       </div>
     </nav>
 

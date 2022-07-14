@@ -4,125 +4,212 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
-	"github.com/Depado/bfchroma/v2"
-	"github.com/alecthomas/chroma/v2/formatters/html"
-	bf "github.com/russross/blackfriday/v2"
+	toc "github.com/abhinav/goldmark-toc"
+	chromahtml "github.com/alecthomas/chroma/formatters/html"
+	"github.com/digineo/texd"
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed docs.yml *.md **/*.md
+//go:embed *.md **/*.md
 var sources embed.FS
+
+//go:embed docs.yml
+var config []byte
+
+//go:embed docs.html
+var rawLayout string
+var tplLayout = template.Must(template.New("layout").Parse(rawLayout))
 
 type page struct {
 	Title       string
 	Breadcrumbs []string
-	Body        string
+	TOC         *toc.TOC
+	CSS         []byte
+	Body        []byte
 	File        string
 	Route       string
 	Children    []*page
 }
 
-var root = func() page {
-	structure, err := sources.Open("docs.yml")
-	if err != nil {
-		panic(err)
-	}
-	defer structure.Close()
+type pageRoutes map[string]*page
 
+func getRoutes(urlPrefix string) (pageRoutes, error) {
 	var menu page
-	dec := yaml.NewDecoder(structure)
+	dec := yaml.NewDecoder(bytes.NewReader(config))
 	dec.KnownFields(true)
 	if err := dec.Decode(&menu); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	menu.init()
-	return menu
-}()
+	urlPrefix = strings.TrimSuffix(urlPrefix, "/")
+	return menu.init(urlPrefix, make(pageRoutes))
+}
 
-func (pg *page) init(crumbs ...string) {
+func (pg *page) init(urlPrefix string, r pageRoutes, crumbs ...string) (pageRoutes, error) {
 	if pg.File != "" {
-		if r := strings.TrimSuffix(pg.File, ".md"); r == "index" {
-			pg.Route = ""
+		if r := strings.TrimSuffix(pg.File, ".md"); r == "README" {
+			pg.Route = urlPrefix
 		} else {
-			pg.Route = "/" + r
+			pg.Route = urlPrefix + "/" + r
 		}
-
-		pg.parseFile()
+		r[pg.Route] = pg
+		err := pg.parseFile(urlPrefix)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if pg.Title != "" {
-		pg.Breadcrumbs = append(pg.Breadcrumbs, pg.Title)
+		pg.Breadcrumbs = append([]string{pg.Title}, crumbs...)
 	}
 	for _, child := range pg.Children {
-		child.init(pg.Breadcrumbs...)
+		_, err := child.init(urlPrefix, r, pg.Breadcrumbs...)
+		if err != nil {
+			return nil, err
+		}
 	}
+	return r, nil
 }
 
-func (pg *page) parseFile() {
-	body, err := sources.ReadFile(pg.File)
-	if err != nil {
-		panic(err)
-	}
+type localLinkTransformer struct {
+	prefix string
+}
 
-	r := bfchroma.NewRenderer(
-		bfchroma.WithoutAutodetect(),
-		bfchroma.ChromaOptions(
-			html.WithLineNumbers(true),
-		),
-		bfchroma.Extend(bf.NewHTMLRenderer(bf.HTMLRendererParameters{
-			Flags: bf.CommonHTMLFlags & ^bf.UseXHTML & ^bf.CompletePage,
-		})),
-	)
-	parser := bf.New(
-		bf.WithExtensions(bf.CommonExtensions),
-		bf.WithRenderer(r),
-	)
+var _ parser.ASTTransformer = (*localLinkTransformer)(nil)
 
-	ast := parser.Parse(body)
-	var buf bytes.Buffer
-	var inH1 bool
-
-	ast.Walk(func(node *bf.Node, entering bool) bf.WalkStatus {
-		switch node.Type {
-		case bf.Heading:
-			inH1 = entering && node.HeadingData.Level == 1 && pg.Title == ""
-		case bf.Text:
-			if inH1 {
-				pg.Title = string(node.Literal)
-			}
-		case bf.Link:
-			if entering && bytes.HasPrefix(node.LinkData.Destination, []byte("./")) {
-				node.LinkData.Destination = bytes.TrimSuffix(node.LinkData.Destination, []byte(".md"))
+func (link *localLinkTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && n.Kind() == ast.KindLink {
+			if l, ok := n.(*ast.Link); ok {
+				link.rewrite(l)
 			}
 		}
-		return r.RenderNode(&buf, node, entering)
+		return ast.WalkContinue, nil
 	})
-
-	pg.Body = buf.String()
 }
 
-func (pg *page) Dump(w io.Writer) {
-	fmt.Fprintf(w, "- %s (%s)\n", pg.Title, pg.Route)
-	fmt.Fprintln(w, pg.Body)
-	fmt.Fprintln(w)
+const (
+	localLinkPrefix = "./"
+	localLinkSuffix = ".md"
+)
 
-	for _, c := range pg.Children {
-		c.Dump(w)
+func (link *localLinkTransformer) rewrite(l *ast.Link) {
+	dst := string(l.Destination)
+	if strings.HasPrefix(dst, localLinkPrefix) && strings.HasSuffix(dst, localLinkSuffix) {
+		dst = strings.TrimPrefix(dst, localLinkPrefix)
+		dst = strings.TrimSuffix(dst, localLinkSuffix)
+		l.Destination = []byte(link.prefix + "/" + dst)
 	}
 }
 
-func Handler() http.Handler {
+var sanitize = func() func(io.Reader) *bytes.Buffer {
+	p := bluemonday.UGCPolicy()
+	p.AllowAttrs("class").Globally()
+	return p.SanitizeReader
+}()
+
+func (pg *page) parseFile(urlPrefix string) error {
+	raw, err := sources.ReadFile(pg.File)
+	if err != nil {
+		return err
+	}
+
+	var css, body bytes.Buffer
+	md := goldmark.New(
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+			parser.WithASTTransformers(util.PrioritizedValue{
+				Value:    &localLinkTransformer{urlPrefix},
+				Priority: 999,
+			}),
+		),
+		goldmark.WithRendererOptions(
+			html.WithUnsafe(),
+		),
+		goldmark.WithExtensions(
+			extension.GFM,
+			highlighting.NewHighlighting(
+				highlighting.WithCSSWriter(&css),
+				highlighting.WithStyle("github"),
+				highlighting.WithFormatOptions(
+					chromahtml.WithLineNumbers(true),
+					chromahtml.WithClasses(true),
+				),
+			),
+		),
+	)
+
+	doc := md.Parser().Parse(text.NewReader(raw))
+	tree, err := toc.Inspect(doc, raw)
+	if err != nil {
+		return err
+	}
+	if pg.Title == "" {
+		if len(tree.Items) > 0 {
+			pg.Title = string(tree.Items[0].Title)
+		}
+	}
+	if err := md.Renderer().Render(&body, raw, doc); err != nil {
+		return err
+	}
+	pg.TOC = tree
+	pg.CSS = css.Bytes()
+	pg.Body = sanitize(&body).Bytes()
+	return nil
+}
+
+func Handler(prefix string) (http.Handler, error) {
+	type pageVars struct {
+		Version string
+		Title   string
+		CSS     template.CSS
+		Content template.HTML
+	}
+
+	routes, err := getRoutes(prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build docs: %w", err)
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		pg := routes[r.URL.Path]
+		if pg == nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		var buf bytes.Buffer
+		err := tplLayout.Execute(&buf, &pageVars{
+			Version: texd.Version(),
+			Title:   strings.Join(pg.Breadcrumbs, " · "),
+			CSS:     template.CSS(pg.CSS),
+			Content: template.HTML(pg.Body),
+		})
+
+		if err != nil {
+			log.Println(err)
+			code := http.StatusInternalServerError
+			http.Error(w, http.StatusText(code), code)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-
-		fmt.Fprintf(w, "%#v\n\n", r.URL)
-
-		root.Dump(w)
-	})
+		_, _ = buf.WriteTo(w)
+	}), nil
 }

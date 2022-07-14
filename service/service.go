@@ -88,7 +88,12 @@ func (svc *service) routes() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
-	r.PathPrefix("/docs").Handler(http.StripPrefix("/docs", docs.Handler())).Methods(http.MethodGet)
+
+	if h, err := docs.Handler("/docs"); err != nil {
+		svc.Logger().Warn("documentation unavailable", zap.Error(err))
+	} else {
+		r.PathPrefix("/docs").Handler(h).Methods(http.MethodGet)
+	}
 
 	render := http.Handler(http.HandlerFunc(svc.HandleRender))
 	if max := svc.maxJobSize; max > 0 {
