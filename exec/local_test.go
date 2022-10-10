@@ -3,7 +3,6 @@ package exec
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,7 +19,7 @@ func TestLocalExec_Run(t *testing.T) {
 	require := require.New(t)
 
 	// create tempdir
-	tmpDir, err := ioutil.TempDir("/tmp", "texd")
+	tmpDir, err := os.MkdirTemp("/tmp", "texd")
 	require.NoError(err)
 	defer os.RemoveAll(tmpDir)
 
