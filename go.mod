@@ -1,6 +1,6 @@
 module github.com/digineo/texd
 
-go 1.18
+go 1.19
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0
