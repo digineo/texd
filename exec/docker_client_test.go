@@ -76,9 +76,9 @@ func (m *apiMock) ContainerCreate(
 	networking *network.NetworkingConfig,
 	platform *specs.Platform,
 	containerName string,
-) (container.ContainerCreateCreatedBody, error) {
+) (container.CreateResponse, error) {
 	args := m.Called(ctx, config, host, networking, platform, containerName)
-	return args.Get(0).(container.ContainerCreateCreatedBody), args.Error(1)
+	return args.Get(0).(container.CreateResponse), args.Error(1)
 }
 
 func (m *apiMock) ContainerStart(
@@ -94,9 +94,9 @@ func (m *apiMock) ContainerWait(
 	ctx context.Context,
 	containerID string,
 	condition container.WaitCondition,
-) (<-chan container.ContainerWaitOKBody, <-chan error) {
+) (<-chan container.WaitResponse, <-chan error) {
 	args := m.Called(ctx, containerID, condition)
-	return args.Get(0).(chan container.ContainerWaitOKBody), args.Get(1).(chan error)
+	return args.Get(0).(chan container.WaitResponse), args.Get(1).(chan error)
 }
 
 type dockerClientSuite struct {
@@ -200,11 +200,11 @@ func (s *dockerClientSuite) TestFindImage_failure() {
 func (s *dockerClientSuite) prepareFs(inContainer bool, cidFileContent string) func() {
 	fs := afero.NewMemMapFs()
 	if inContainer {
-		err := afero.WriteFile(fs, "/.dockerenv", nil, 0644)
+		err := afero.WriteFile(fs, "/.dockerenv", nil, 0o644)
 		s.Require().NoError(err)
 
 		if cidFileContent != "" {
-			err = afero.WriteFile(fs, "/container.id", []byte(cidFileContent), 0644)
+			err = afero.WriteFile(fs, "/container.id", []byte(cidFileContent), 0o644)
 			s.Require().NoError(err)
 		}
 	}
@@ -529,7 +529,7 @@ search:
 	var pltf *specs.Platform           // nil!
 
 	s.cli.On("ContainerCreate", bg, ccfg, hcfg, ncfg, pltf, "").
-		Return(container.ContainerCreateCreatedBody{ID: runningID}, startErr)
+		Return(container.CreateResponse{ID: runningID}, startErr)
 }
 
 func (s *dockerClientSuite) TestPrepareContainer() {
@@ -572,8 +572,8 @@ func (s *dockerClientSuite) TestRun() {
 	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
 		Return(nil)
 
-	statusCh := make(chan container.ContainerWaitOKBody, 1)
-	statusCh <- container.ContainerWaitOKBody{StatusCode: 0}
+	statusCh := make(chan container.WaitResponse, 1)
+	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error, 1)
 	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
 		Return(statusCh, errCh)
@@ -605,8 +605,8 @@ func (s *dockerClientSuite) TestRun_errRetreiveLogs() {
 	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
 		Return(nil)
 
-	statusCh := make(chan container.ContainerWaitOKBody, 1)
-	statusCh <- container.ContainerWaitOKBody{StatusCode: 0}
+	statusCh := make(chan container.WaitResponse, 1)
+	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error)
 	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
 		Return(statusCh, errCh)
@@ -634,8 +634,8 @@ func (s *dockerClientSuite) TestRun_errReadLogs() {
 	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
 		Return(nil)
 
-	statusCh := make(chan container.ContainerWaitOKBody, 1)
-	statusCh <- container.ContainerWaitOKBody{StatusCode: 0}
+	statusCh := make(chan container.WaitResponse, 1)
+	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error)
 	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
 		Return(statusCh, errCh)
@@ -673,7 +673,7 @@ func (s *dockerClientSuite) TestRun_errWaitForContainer() {
 	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
 		Return(nil)
 
-	statusCh := make(chan container.ContainerWaitOKBody)
+	statusCh := make(chan container.WaitResponse)
 	errCh := make(chan error, 1)
 	errCh <- errors.New("unexpected restart")
 	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
@@ -696,8 +696,8 @@ func (s *dockerClientSuite) TestRun_errExitStatus() {
 	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
 		Return(nil)
 
-	statusCh := make(chan container.ContainerWaitOKBody, 1)
-	statusCh <- container.ContainerWaitOKBody{StatusCode: 127}
+	statusCh := make(chan container.WaitResponse, 1)
+	statusCh <- container.WaitResponse{StatusCode: 127}
 	errCh := make(chan error, 1)
 	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
 		Return(statusCh, errCh)
