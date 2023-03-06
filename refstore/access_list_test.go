@@ -1,8 +1,8 @@
 package refstore
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
-	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
