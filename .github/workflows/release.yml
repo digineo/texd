@@ -43,16 +43,20 @@ jobs:
   docker:
     name: Build Docker images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to Docker Hub
+      - name: Login to container registry
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v2
@@ -66,7 +70,7 @@ jobs:
         uses: docker/metadata-action@v4
         id: meta
         with:
-          images: digineode/texd
+          images: ghcr.io/digineo/texd
           tags: |
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}

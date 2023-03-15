@@ -2,7 +2,7 @@
 FROM debian:bullseye-slim
 
 # This Dockerfile is used by GitHub Actions to build the
-# digineode/texd:base image on a regular basis.
+# ghcr.io/digineo/texd:base image on a regular basis.
 #
 # It leverages buildkit to generate an AMD64 and ARM64 image.
 #
