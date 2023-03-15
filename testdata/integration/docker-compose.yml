@@ -2,7 +2,7 @@ version: '3'
 
 services:
   texd:
-    image: digineode/texd:latest
+    image: ghcr.io/digineo/texd:latest
     command: --reference-store=memcached://memcached:11211?expiration=5s
     depends_on:
       - memcached

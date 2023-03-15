@@ -46,13 +46,13 @@ $ texd
 ### Ephemeral Containers
 
 Here, you still download and run texd locally, but document rendering will happen in an short-lived
-Docker container, using a specific Docker image (`texlive/texlive:latest` will do just fine, but you
-could easily build a smaller one using e.g. a Debian base image).
+Docker container, using a specific Docker image (`registry.gitlab.com/islandoftex/images/texlive:latest`
+will do just fine, but you could easily build a smaller one using e.g. a Debian base image).
 
 To run in container mode, run:
 
 ```console
-$ texd texlive/texlive:latest
+$ texd registry.gitlab.com/islandoftex/images/texlive:latest
 ```
 
 This will pull the specified image, if it doesn't exist yet. Note that you need to give texd
@@ -63,7 +63,7 @@ this case, the first image is used as default image:
 
 ```console
 $ texd \
-    texlive/texlive:latest \
+    registry.gitlab.com/islandoftex/images/texlive:latest \
     registry.gitlab.com/islandoftex/images/texlive:TL2014-historic \
     ghcr.io/yourcompany/texlive-prod
 ```
@@ -77,14 +77,25 @@ viable alternative to the local mode. In fact, this mode is functionally equival
 To run texd as Docker service, use this command:
 
 ```console
-$ docker run --rm -t -p localhost:2201:2201 digineode/texd:latest
+$ docker run --rm -t -p localhost:2201:2201 ghcr.io/digineo/texd:latest
 ```
 
-When using Gitlab CI, you can add this line to your `.gitlab-ci.yml`:
+The image `ghcr.io/digineo/texd:latest` is based on Debian Bullseye with
+some texlive packages installed from the Debian repositories (see this
+[`Dockerfile`](./.github/Dockerfile.base) for the current list). Note
+that Debian Bullseye comes with [TeXlive 2020][], while (at the time of
+writing) the current release is TeXlive 2022.
+
+> **Note:**
+>
+> An earlier version of this README made use of `digineode/texd` instead
+> of `ghcr.io/digineo/texd:latest`.
+
+When using Gitlab CI, you can add this snippet to your `.gitlab-ci.yml`:
 
 ```yml
 services:
-  - name: digineode/texd:latest
+  - name: ghcr.io/digineo/texd:latest
     alias: texd
 
 variables:
@@ -93,7 +104,7 @@ variables:
   TEXD_ENDPOINT: http://texd:2201/render
 ```
 
-This image is based on `texlive/texlive:latest`.
+[TeXlive 2020]: https://packages.debian.org/bullseye/texlive
 
 ## CLI Options
 
@@ -101,8 +112,8 @@ Calling texd with options works in any mode; these commands are equivalent:
 
 ```console
 $ texd -h
-$ texd texlive/texlive:latest -h
-$ docker run --rm -t digineode/texd:latest -h
+$ texd tregistry.gitlab.com/islandoftex/images/texlive:latestest -h
+$ docker run --rm -t ghcr.io/digineo/texd:latest -h
 ```
 
 - `--help`, `-h`
@@ -371,7 +382,7 @@ Content-Length: 287
 {
   "version":        "0.0.0",
   "mode":           "container",
-  "images":         ["texlive/texlive:latest"],
+  "images":         ["registry.gitlab.com/islandoftex/images/texlive:latest"],
   "timeout":        60,
   "engines":        ["xelatex","pdflatex","lualatex"],
   "default_engine": "xelatex",

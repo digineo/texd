@@ -1,4 +1,4 @@
-FROM digineode/texd:base
+FROM ghcr.io/digineo/texd:base
 
 COPY texd /bin/
 

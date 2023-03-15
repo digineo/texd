@@ -4,9 +4,9 @@ ARG IS_RELEASE=0
 FROM golang:${GO_VERSION}-bullseye as builder
 
 # This Dockerfile is used by GitHub Actions to build the
-# digineode/texd:latest image whenever there is a commit pushed
+# ghcr.io/digineo/texd:latest image whenever there is a commit pushed
 # to the master branch. For tagged commits, this also creates
-# digineode/texd:vX and digineode/texd:vX.Y.Z.
+# ghcr.io/digineo/texd:vX and ghcr.io/digineo/texd:vX.Y.Z.
 #
 # It leverages buildkit to generate an AMD64 and ARM64 image.
 #
@@ -28,7 +28,7 @@ RUN <<-eot
 	./texd --version
 eot
 
-FROM digineode/texd:base
+FROM ghcr.io/digineo/texd:base
 
 COPY --from=builder /work/texd /bin/
 

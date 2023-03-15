@@ -138,16 +138,16 @@ func (s *dockerClientSuite) TestNewDockerClient() {
 func (s *dockerClientSuite) TestFindAllowedImageID() {
 	s.subject.images = []types.ImageSummary{
 		{ID: "a", RepoTags: []string{"localhost/texd/minimal:v1", "localhost/texd/minimal:latest"}},
-		{ID: "b", RepoTags: []string{"texlive/texlive:latest"}},
+		{ID: "b", RepoTags: []string{"registry.gitlab.com/islandoftex/images/texlive:latest"}},
 	}
 
 	s.Assert().Equal("a", s.subject.findAllowedImageID("localhost/texd/minimal:latest"))
-	s.Assert().Equal("b", s.subject.findAllowedImageID("texlive/texlive:latest"))
+	s.Assert().Equal("b", s.subject.findAllowedImageID("registry.gitlab.com/islandoftex/images/texlive:latest"))
 	s.Assert().Equal("", s.subject.findAllowedImageID("unknown"))
 }
 
 func (s *dockerClientSuite) TestFindAllowedImageID_empty() {
-	s.Assert().Equal("", s.subject.findAllowedImageID("texlive/texlive:latest"))
+	s.Assert().Equal("", s.subject.findAllowedImageID("registry.gitlab.com/islandoftex/images/texlive:latest"))
 }
 
 func (s *dockerClientSuite) TestFindAllowedImageID_default() {

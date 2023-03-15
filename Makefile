@@ -50,7 +50,7 @@ run-local: tmp build ## builds and runs texd in local mode
 
 .PHONY: run-container
 run-container: tmp build ## builds and runs texd in container mode
-	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS) digineode/texd:base
+	./$(TARGET) $(RUN_ARGS) $(EXTRA_RUN_ARGS) ghcr.io/digineo/texd:base
 
 .PHONY: run-dind-bind
 run-dind-bind: tmp docker-latest ## build and runs texd in container mode, using Docker-in-Docker
@@ -59,9 +59,9 @@ run-dind-bind: tmp docker-latest ## build and runs texd in container mode, using
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$(pwd)/tmp:/texd \
 		-p 127.0.0.1:2201:2201 \
-		digineode/texd:latest \
+		ghcr.io/digineo/texd:latest \
 		--log-level debug $(EXTRA_RUN_ARGS) \
-		digineode/texd:base
+		ghcr.io/digineo/texd:base
 
 .PHONY: run-dind-volume
 run-dind-volume: tmp docker-latest ## build and runs texd in container mode, using Docker-in-Docker
@@ -70,9 +70,9 @@ run-dind-volume: tmp docker-latest ## build and runs texd in container mode, usi
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v texd-work:/texd \
 		-p 127.0.0.1:2201:2201 \
-		digineode/texd:latest \
+		ghcr.io/digineo/texd:latest \
 		--log-level debug $(EXTRA_RUN_ARGS) \
-		digineode/texd:base
+		ghcr.io/digineo/texd:base
 
 ## testing
 
@@ -129,7 +129,7 @@ docker-latest: build ## builds a Docker container with the latest binary
 		--label=org.opencontainers.image.title=$(TARGET) \
 		--label=org.opencontainers.image.revision=$(shell git show -s --format=%H HEAD) \
 		--label=org.opencontainers.image.version=$(VERSION) \
-		-t digineode/texd:latest \
+		-t ghcr.io/digineo/texd:latest \
 		.
 
 .PHONY: bump bump-major bump-minor bump-patch
