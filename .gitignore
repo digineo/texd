@@ -2,3 +2,4 @@ dist/
 /texd
 /tmp
 coverage.*
+.DS_Store
