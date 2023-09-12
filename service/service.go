@@ -50,6 +50,7 @@ type service struct {
 	mode   string
 	images []string
 	refs   refstore.Adapter
+	addr   string // for tests, when start(":0") was called
 
 	jobs           chan struct{}
 	executor       func(exec.Document) exec.Exec
@@ -118,6 +119,7 @@ func (svc *service) start(addr string) (func(context.Context) error, error) {
 	if err != nil {
 		return nil, err
 	}
+	svc.addr = l.Addr().String()
 
 	go func() {
 		if e := srv.Serve(l); !errors.Is(e, http.ErrServerClosed) {

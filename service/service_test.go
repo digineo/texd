@@ -61,7 +61,7 @@ func (suite *testSuite) SetupSuite() {
 		Executor:       suite.Executor,
 	}, logger)
 
-	stop, err := suite.svc.start(":2201")
+	stop, err := suite.svc.start(":0")
 	require.NoError(err)
 
 	suite.stop = stop
@@ -289,10 +289,12 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 	}
 	w.Close()
 
-	uri, err := url.Parse("http://localhost:2201/render")
-	require.NoError(err)
-	uri.RawQuery = testCase.query
-
+	uri := url.URL{
+		Scheme:   "http",
+		Host:     suite.svc.addr,
+		Path:     "/render",
+		RawQuery: testCase.query,
+	}
 	req, err := http.NewRequest(http.MethodPost, uri.String(), &b)
 	require.NoError(err)
 
