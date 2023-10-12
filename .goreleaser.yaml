@@ -22,10 +22,6 @@ builds:
     goarch:
       - amd64
       - arm64
-archives:
-  - replacements:
-      linux: Linux
-      darwin: macOS
 nfpms:
   - id: texd
     builds: [texd]
