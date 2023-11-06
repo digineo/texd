@@ -8,7 +8,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/moby/term v0.5.0
 	github.com/opencontainers/image-spec v1.0.2
 	github.com/prometheus/client_golang v1.17.0
