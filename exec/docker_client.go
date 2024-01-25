@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/digineo/texd/service/middleware"
+	"github.com/digineo/texd/xlog"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -15,7 +16,6 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/moby/term"
-	"go.uber.org/zap"
 )
 
 // newClient is swapped in tests.
@@ -26,7 +26,7 @@ var newClient = func() (client.APIClient, error) {
 // DockerClient wraps a Docker client instance and provides methods to
 // pull images and start containers.
 type DockerClient struct {
-	log    *zap.Logger
+	log    xlog.Logger
 	cli    client.APIClient
 	images []image.Summary
 
@@ -40,14 +40,14 @@ type DockerClient struct {
 // When running in a Docker-in-Docker environment, baseDir is used to
 // determine the volume path on the Docker host, in order to mount
 // job directories correctly.
-func NewDockerClient(log *zap.Logger, baseDir string) (h *DockerClient, err error) {
+func NewDockerClient(log xlog.Logger, baseDir string) (h *DockerClient, err error) {
 	cli, err := newClient()
 	if err != nil {
 		return nil, err
 	}
 
 	if log == nil {
-		log = zap.NewNop()
+		log = xlog.NewNop()
 	}
 	dc := &DockerClient{
 		log: log,
@@ -82,14 +82,14 @@ func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...
 		if img.ID == "" || alwaysPull {
 			toPull = append(toPull, tag)
 		} else {
-			dc.log.Info("image already present", zap.String("image", tag))
+			dc.log.Info("image already present", xlog.String("image", tag))
 			knownImages = append(knownImages, img)
 		}
 	}
 
 	p := newProgressReporter(os.Stdout)
 	for _, tag := range toPull {
-		dc.log.Info("pulling missing image", zap.String("image", tag))
+		dc.log.Info("pulling missing image", xlog.String("image", tag))
 		if err := dc.pull(ctx, tag, p); err != nil {
 			return nil, err
 		}
@@ -209,8 +209,8 @@ func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cm
 	}
 	dc.log.Debug("container is ready",
 		middleware.RequestIDField(ctx),
-		zap.String("id", worker.ID),
-		zap.String("work-dir", wd))
+		xlog.String("id", worker.ID),
+		xlog.String("work-dir", wd))
 	return worker.ID, nil
 }
 

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/digineo/texd/tex"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type localExec struct {
@@ -20,7 +20,7 @@ func LocalExec(doc Document) Exec {
 	}
 }
 
-func (x *localExec) Run(ctx context.Context, log *zap.Logger) error {
+func (x *localExec) Run(ctx context.Context, log xlog.Logger) error {
 	dir, args, err := x.extract()
 	if err != nil {
 		return tex.CompilationError("invalid document", err, nil)
@@ -36,11 +36,11 @@ func (x *localExec) Run(ctx context.Context, log *zap.Logger) error {
 	cmd.Dir = dir
 	cmd.Stderr = &stderr
 
-	log.Debug("running latexmk", zap.Strings("args", args[1:]))
+	log.Debug("running latexmk", xlog.Any("args", args[1:]))
 	if err := cmd.Run(); err != nil {
 		log.Error("compilation failed",
-			zap.String("stderr", stderr.String()),
-			zap.Error(err))
+			xlog.String("stderr", stderr.String()),
+			xlog.Error(err))
 		return tex.CompilationError("compilation failed", err, tex.KV{
 			"cmd":    args[0],
 			"args":   args[1:],

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,11 +22,10 @@ import (
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
+	"github.com/digineo/texd/xlog"
 	"github.com/docker/go-units"
 	"github.com/spf13/pflag"
 	"github.com/thediveo/enumflag"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -53,7 +54,7 @@ var (
 	engine      = tex.DefaultEngine.Name()
 	jobdir      = ""
 	pull        = false
-	logLevel    = zapcore.InfoLevel.String()
+	logLevel    = slog.LevelInfo.String()
 	maxJobSize  = units.BytesSize(float64(opts.MaxJobSize))
 	storageDSN  = ""
 	showVersion = false
@@ -119,7 +120,7 @@ func parseFlags(progname string, args ...string) []string {
 		fmt.Sprintf("enable reference store and configure with `DSN`, available adapters are: %v", refstore.AvailableAdapters()))
 	fs.BoolVar(&pull, "pull", pull, "always pull Docker images")
 	fs.StringVar(&logLevel, "log-level", logLevel,
-		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
+		"set logging verbosity, acceptable values are: [debug, info, warn, error, fatal]")
 	fs.BoolVarP(&showVersion, "version", "v", showVersion,
 		`print version information and exit`)
 
@@ -148,8 +149,10 @@ func parseFlags(progname string, args ...string) []string {
 func main() { //nolint:funlen
 	texd.PrintBanner(os.Stdout)
 	images := parseFlags(os.Args[0], os.Args[1:]...)
-	log, sync := setupLogger()
-	defer sync()
+	log, err := setupLogger()
+	if err != nil {
+		panic(err)
+	}
 
 	if showVersion {
 		printVersion()
@@ -158,18 +161,18 @@ func main() { //nolint:funlen
 
 	if err := tex.SetJobBaseDir(jobdir); err != nil {
 		log.Fatal("error setting job directory",
-			zap.String("flag", "--job-directory"),
-			zap.Error(err))
+			xlog.String("flag", "--job-directory"),
+			xlog.Error(err))
 	}
 	if err := tex.SetDefaultEngine(engine); err != nil {
 		log.Fatal("error setting default TeX engine",
-			zap.String("flag", "--tex-engine"),
-			zap.Error(err))
+			xlog.String("flag", "--tex-engine"),
+			xlog.Error(err))
 	}
 	if maxsz, err := units.FromHumanSize(maxJobSize); err != nil {
 		log.Fatal("error parsing maximum job size",
-			zap.String("flag", "--max-job-size"),
-			zap.Error(err))
+			xlog.String("flag", "--max-job-size"),
+			xlog.Error(err))
 	} else {
 		opts.MaxJobSize = maxsz
 	}
@@ -177,13 +180,13 @@ func main() { //nolint:funlen
 		rp, err := retentionPolicy()
 		if err != nil {
 			log.Fatal("error initializing retention policy",
-				zap.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
-				zap.Error(err))
+				xlog.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
+				xlog.Error(err))
 		}
 		if adapter, err := refstore.NewStore(storageDSN, rp); err != nil {
 			log.Fatal("error parsing reference store DSN",
-				zap.String("flag", "--reference-store"),
-				zap.Error(err))
+				xlog.String("flag", "--reference-store"),
+				xlog.Error(err))
 		} else {
 			opts.RefStore = adapter
 		}
@@ -192,37 +195,39 @@ func main() { //nolint:funlen
 	}
 
 	if len(images) > 0 {
-		log.Info("using docker", zap.Strings("images", images))
+		log.Info("using docker", xlog.String("images", strings.Join(images, ",")))
 		cli, err := exec.NewDockerClient(log, tex.JobBaseDir())
 		if err != nil {
-			log.Fatal("error connecting to dockerd", zap.Error(err))
+			log.Error("error connecting to dockerd", xlog.Error(err))
+			os.Exit(1)
 		}
 
 		opts.Images, err = cli.SetImages(context.Background(), pull, images...)
 		opts.Mode = "container"
 		if err != nil {
-			log.Fatal("error setting images", zap.Error(err))
+			log.Error("error setting images", xlog.Error(err))
+			os.Exit(1)
 		}
 		opts.Executor = cli.Executor
 	}
 
 	stop, err := service.Start(opts, log)
 	if err != nil {
-		log.Fatal("failed to start service", zap.Error(err))
+		log.Fatal("failed to start service", xlog.Error(err))
 	}
 	onExit(log, stop)
 }
 
 type stopFun func(context.Context) error
 
-func onExit(log *zap.Logger, stopper ...stopFun) {
+func onExit(log xlog.Logger, stopper ...stopFun) {
 	exitCh := make(chan os.Signal, 2) //nolint:mnd // idiomatic
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
 
 	log.Info("performing shutdown, press Ctrl+C to exit now",
-		zap.String("signal", sig.String()),
-		zap.Duration("graceful-wait-timeout", exitTimeout))
+		xlog.String("signal", sig.String()),
+		slog.Duration("graceful-wait-timeout", exitTimeout))
 
 	ctx, cancel := context.WithTimeout(context.Background(), exitTimeout)
 	defer cancel()
@@ -232,7 +237,7 @@ func onExit(log *zap.Logger, stopper ...stopFun) {
 	for _, stop := range stopper {
 		go func(f stopFun) {
 			if err := f(ctx); err != nil {
-				log.Error("error while shutting down", zap.Error(err))
+				log.Error("error while shutting down", xlog.Error(err))
 			}
 			wg.Done()
 		}(stop)
@@ -275,34 +280,20 @@ func printVersion() {
 	}
 }
 
-func setupLogger() (*zap.Logger, func()) {
-	var cfg zap.Config
-	if texd.Development() {
-		cfg = zap.NewDevelopmentConfig()
-	} else {
-		cfg = zap.NewProductionConfig()
-	}
-
-	lvl, lvlErr := zapcore.ParseLevel(logLevel)
-	if lvlErr == nil {
-		cfg.Level = zap.NewAtomicLevelAt(lvl)
-	}
-
-	log, err := cfg.Build()
+func setupLogger() (xlog.Logger, error) {
+	lvl, err := xlog.ParseLevel(logLevel)
 	if err != nil {
-		// we don't have a logger yet, so logging the error
-		// proves to be complicated :)
-		panic(err)
+		return nil, err
 	}
 
-	if lvlErr != nil {
-		log.Error("error parsing log level",
-			zap.String("flag", "--log-level"),
-			zap.Error(lvlErr))
+	o := &slog.HandlerOptions{
+		AddSource: true,
+		// XXX: provide ReplaceAttr callback to normalize Source locations?
+		Level: lvl,
 	}
 
-	zap.ReplaceGlobals(log)
-	return log, func() {
-		_ = log.Sync()
+	if texd.Development() {
+		return xlog.New(xlog.TypeText, os.Stderr, o)
 	}
+	return xlog.New(xlog.TypeJSON, os.Stdout, o)
 }

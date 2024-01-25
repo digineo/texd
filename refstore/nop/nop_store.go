@@ -7,7 +7,7 @@ import (
 	"net/url"
 
 	"github.com/digineo/texd/refstore"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type nop struct{}
@@ -16,11 +16,11 @@ func New(_ *url.URL, _ refstore.RetentionPolicy) (refstore.Adapter, error) {
 	return &nop{}, nil
 }
 
-func (*nop) CopyFile(*zap.Logger, refstore.Identifier, io.Writer) error {
+func (*nop) CopyFile(xlog.Logger, refstore.Identifier, io.Writer) error {
 	return refstore.ErrUnknownReference
 }
 
-func (*nop) Store(_ *zap.Logger, r io.Reader) error {
+func (*nop) Store(_ xlog.Logger, r io.Reader) error {
 	_, err := io.Copy(io.Discard, r)
 	return err
 }

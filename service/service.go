@@ -15,10 +15,10 @@ import (
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
+	"github.com/digineo/texd/xlog"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
 )
 
 const (
@@ -59,10 +59,10 @@ type service struct {
 	maxJobSize     int64 // number of bytes
 	keepJobs       int
 
-	log *zap.Logger
+	log xlog.Logger
 }
 
-func newService(opts Options, log *zap.Logger) *service {
+func newService(opts Options, log xlog.Logger) *service {
 	svc := &service{
 		mode:           opts.Mode,
 		jobs:           make(chan struct{}, opts.QueueLength),
@@ -112,7 +112,7 @@ func (svc *service) start(addr string) (func(context.Context) error, error) {
 		Handler: svc.routes(),
 	}
 
-	zaddr := zap.String("addr", addr)
+	zaddr := xlog.String("addr", addr)
 	svc.Logger().Info("starting server", zaddr)
 
 	l, err := net.Listen("tcp", addr)
@@ -123,7 +123,7 @@ func (svc *service) start(addr string) (func(context.Context) error, error) {
 
 	go func() {
 		if e := srv.Serve(l); !errors.Is(e, http.ErrServerClosed) {
-			svc.Logger().Error("unexpected HTTP server shutdown", zap.Error(err))
+			svc.Logger().Error("unexpected HTTP server shutdown", xlog.Error(err))
 		}
 	}()
 
@@ -136,13 +136,13 @@ func (svc *service) start(addr string) (func(context.Context) error, error) {
 	}, nil
 }
 
-func Start(opts Options, log *zap.Logger) (func(context.Context) error, error) {
+func Start(opts Options, log xlog.Logger) (func(context.Context) error, error) {
 	return newService(opts, log).start(opts.Addr)
 }
 
-var discardlog = zap.NewNop()
+var discardlog = xlog.NewNop()
 
-func (svc *service) Logger() *zap.Logger {
+func (svc *service) Logger() xlog.Logger {
 	if svc.log == nil {
 		return discardlog
 	}
@@ -163,7 +163,7 @@ func (svc *service) newMetricsHandler() http.Handler {
 	})
 }
 
-func errorResponse(log *zap.Logger, res http.ResponseWriter, err error) {
+func errorResponse(log xlog.Logger, res http.ResponseWriter, err error) {
 	res.Header().Set("Content-Type", mimeTypeJSON)
 	res.Header().Set("X-Content-Type-Options", "nosniff")
 	res.WriteHeader(http.StatusUnprocessableEntity)
@@ -178,6 +178,6 @@ func errorResponse(log *zap.Logger, res http.ResponseWriter, err error) {
 		})
 	}
 	if respErr != nil {
-		log.Error("failed to write response", zap.Error(respErr))
+		log.Error("failed to write response", xlog.Error(respErr))
 	}
 }
