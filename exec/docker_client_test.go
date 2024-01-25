@@ -14,6 +14,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -36,11 +37,11 @@ type apiMock struct {
 func (m *apiMock) ImageList(
 	ctx context.Context,
 	options types.ImageListOptions,
-) ([]types.ImageSummary, error) {
+) ([]image.Summary, error) {
 	args := m.Called(ctx, options)
 	// channel trickery to allow TestSetImages create different return values
 	// (and work around a limitation of the mock framework)
-	return <-args.Get(0).(chan []types.ImageSummary), <-args.Get(1).(chan error)
+	return <-args.Get(0).(chan []image.Summary), <-args.Get(1).(chan error)
 }
 
 func (m *apiMock) ContainerInspect(
@@ -63,7 +64,7 @@ func (m *apiMock) ImagePull(
 func (m *apiMock) ContainerLogs(
 	ctx context.Context,
 	container string,
-	options types.ContainerLogsOptions,
+	options container.LogsOptions,
 ) (io.ReadCloser, error) {
 	args := m.Called(ctx, container, options)
 	return args.Get(0).(io.ReadCloser), args.Error(1)
@@ -84,7 +85,7 @@ func (m *apiMock) ContainerCreate(
 func (m *apiMock) ContainerStart(
 	ctx context.Context,
 	container string,
-	options types.ContainerStartOptions,
+	options container.StartOptions,
 ) error {
 	args := m.Called(ctx, container, options)
 	return args.Error(0)
@@ -136,7 +137,7 @@ func (s *dockerClientSuite) TestNewDockerClient() {
 }
 
 func (s *dockerClientSuite) TestFindAllowedImageID() {
-	s.subject.images = []types.ImageSummary{
+	s.subject.images = []image.Summary{
 		{ID: "a", RepoTags: []string{"localhost/texd/minimal:v1", "localhost/texd/minimal:latest"}},
 		{ID: "b", RepoTags: []string{"registry.gitlab.com/islandoftex/images/texlive:latest"}},
 	}
@@ -153,7 +154,7 @@ func (s *dockerClientSuite) TestFindAllowedImageID_empty() {
 func (s *dockerClientSuite) TestFindAllowedImageID_default() {
 	s.Assert().Equal("", s.subject.findAllowedImageID(""))
 
-	s.subject.images = []types.ImageSummary{
+	s.subject.images = []image.Summary{
 		{ID: "a", RepoTags: []string{"texd/default"}},
 		{ID: "b", RepoTags: []string{"texd/alternative"}},
 	}
@@ -163,12 +164,12 @@ func (s *dockerClientSuite) TestFindAllowedImageID_default() {
 func (s *dockerClientSuite) TestFindImage() {
 	const tag = "localhost/test/image:latest"
 
-	localImages := []types.ImageSummary{
+	localImages := []image.Summary{
 		{ID: "does not match", RepoTags: []string{"localhost/test/image:v0.5"}},
 		{ID: "matches", RepoTags: []string{tag, "localhost/test/image:v1.0"}},
 		{ID: "matches not", RepoTags: []string{"localhost/test/image:v0.9"}},
 	}
-	imgCh := make(chan []types.ImageSummary, 1)
+	imgCh := make(chan []image.Summary, 1)
 	imgCh <- localImages
 	close(imgCh)
 
@@ -183,8 +184,8 @@ func (s *dockerClientSuite) TestFindImage() {
 }
 
 func (s *dockerClientSuite) TestFindImage_failure() {
-	imgCh := make(chan []types.ImageSummary, 1)
-	imgCh <- []types.ImageSummary{}
+	imgCh := make(chan []image.Summary, 1)
+	imgCh <- []image.Summary{}
 	close(imgCh)
 
 	errCh := make(chan error, 1)
@@ -396,17 +397,17 @@ func (s *dockerClientSuite) TestPull_failure() {
 }
 
 func (s *dockerClientSuite) TestSetImages() {
-	localImages := []types.ImageSummary{
+	localImages := []image.Summary{
 		{ID: "a", RepoTags: []string{"test:v1"}},
 		{ID: "b", RepoTags: []string{"test:v3"}},
 		{ID: "c", RepoTags: []string{"test:v2"}},
 	}
 
 	// ImageList is called three times
-	imgCh := make(chan []types.ImageSummary, 3)
-	imgCh <- localImages            // find(test:v3) → ok
-	imgCh <- nil                    // find(test:v4) → not found → pull
-	imgCh <- []types.ImageSummary{{ // find(test:v4) → ok
+	imgCh := make(chan []image.Summary, 3)
+	imgCh <- localImages       // find(test:v3) → ok
+	imgCh <- nil               // find(test:v4) → not found → pull
+	imgCh <- []image.Summary{{ // find(test:v4) → ok
 		ID:       "d",
 		RepoTags: []string{"test:v4", "test:latest"},
 	}}
@@ -425,7 +426,7 @@ func (s *dockerClientSuite) TestSetImages() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errFindImage() {
-	imgCh := make(chan []types.ImageSummary)
+	imgCh := make(chan []image.Summary)
 	close(imgCh)
 
 	errCh := make(chan error, 1)
@@ -441,7 +442,7 @@ func (s *dockerClientSuite) TestSetImages_errFindImage() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errPullImage() {
-	imgCh := make(chan []types.ImageSummary, 1)
+	imgCh := make(chan []image.Summary, 1)
 	imgCh <- nil // find(test:v0) → not found → pull
 	close(imgCh)
 
@@ -458,7 +459,7 @@ func (s *dockerClientSuite) TestSetImages_errPullImage() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
-	imgCh := make(chan []types.ImageSummary)
+	imgCh := make(chan []image.Summary)
 	close(imgCh)
 
 	errCh := make(chan error, 2)
@@ -476,7 +477,7 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errLosingImageB() {
-	imgCh := make(chan []types.ImageSummary)
+	imgCh := make(chan []image.Summary)
 	close(imgCh)
 
 	errCh := make(chan error)
@@ -503,7 +504,7 @@ search:
 		}
 	}
 	if !haveImage {
-		s.subject.images = append(s.subject.images, types.ImageSummary{
+		s.subject.images = append(s.subject.images, image.Summary{
 			ID:       "test",
 			RepoTags: []string{tag},
 		})
@@ -565,11 +566,11 @@ func (s *dockerClientSuite) TestRun() {
 		runningID, nil)
 
 	var logs bytes.Buffer
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(&logs), nil)
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
@@ -598,11 +599,11 @@ func (s *dockerClientSuite) TestRun_errRetreiveLogs() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(nil), errors.New("failed"))
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
@@ -627,11 +628,11 @@ func (s *dockerClientSuite) TestRun_errReadLogs() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(&failReader{errors.New("copy failure")}), nil)
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
@@ -650,11 +651,11 @@ func (s *dockerClientSuite) TestRun_errContainerStart() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(errors.New("dockerd busy"))
 
 	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
@@ -666,11 +667,11 @@ func (s *dockerClientSuite) TestRun_errWaitForContainer() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(nil)
 
 	statusCh := make(chan container.WaitResponse)
@@ -689,11 +690,11 @@ func (s *dockerClientSuite) TestRun_errExitStatus() {
 		runningID, nil)
 
 	var logs bytes.Buffer
-	s.cli.On("ContainerLogs", bg, runningID, types.ContainerLogsOptions{
+	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
 		ShowStderr: true,
 	}).Return(io.NopCloser(&logs), nil)
 
-	s.cli.On("ContainerStart", bg, runningID, types.ContainerStartOptions{}).
+	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
 		Return(nil)
 
 	statusCh := make(chan container.WaitResponse, 1)

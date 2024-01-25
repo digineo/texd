@@ -10,6 +10,7 @@ import (
 	"github.com/digineo/texd/service/middleware"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -28,7 +29,7 @@ var newClient = func() (client.APIClient, error) {
 type DockerClient struct {
 	log    *zap.Logger
 	cli    client.APIClient
-	images []types.ImageSummary
+	images []image.Summary
 
 	dirRewrite *baseDirRewrite
 }
@@ -69,7 +70,7 @@ func NewDockerClient(log *zap.Logger, baseDir string) (h *DockerClient, err erro
 // containers are started.
 func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...string) ([]string, error) {
 	// A given tag may have aliases, we want to remember and allow all of them.
-	knownImages := make([]types.ImageSummary, 0, len(tags))
+	knownImages := make([]image.Summary, 0, len(tags))
 
 	// collect images we need to pull
 	toPull := make([]string, 0, len(tags))
@@ -115,7 +116,7 @@ func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...
 
 // have reports whether the given tag is present on the current Docker
 // host.
-func (dc *DockerClient) findImage(ctx context.Context, tag string) (image types.ImageSummary, err error) {
+func (dc *DockerClient) findImage(ctx context.Context, tag string) (summary image.Summary, err error) {
 	images, err := dc.cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
 		return
@@ -124,7 +125,7 @@ func (dc *DockerClient) findImage(ctx context.Context, tag string) (image types.
 	for _, img := range images {
 		for _, t := range img.RepoTags {
 			if t == tag {
-				image = img
+				summary = img
 				return
 			}
 		}
@@ -239,7 +240,7 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 	)
 	go func() {
 		defer close(logsDone)
-		out, err := dc.cli.ContainerLogs(ctx, id, types.ContainerLogsOptions{
+		out, err := dc.cli.ContainerLogs(ctx, id, container.LogsOptions{
 			ShowStderr: true,
 		})
 		if err != nil {
@@ -252,7 +253,7 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 		}
 	}()
 
-	if err = dc.cli.ContainerStart(ctx, id, types.ContainerStartOptions{}); err != nil {
+	if err = dc.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 
