@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/digineo/texd/refstore"
+	"github.com/digineo/texd/xlog"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type dummyFile []byte
@@ -84,7 +84,7 @@ func TestNew_dirNotWritable(t *testing.T) {
 
 func TestDirAdapter_keepFiles(t *testing.T) {
 	require := require.New(t)
-	log := zap.NewNop()
+	log := xlog.NewNop()
 
 	subject, err := NewMemory(nil, &refstore.KeepForever{})
 	require.NoError(err)
@@ -121,7 +121,7 @@ func TestDirAdapter_purgeFiles(t *testing.T) {
 
 func TestDirAdapter_accessMap(t *testing.T) {
 	require := require.New(t)
-	log := zap.NewNop()
+	log := xlog.NewNop()
 	f := dummyFile("01234567890")
 
 	for _, q := range []struct{ n, sz int }{

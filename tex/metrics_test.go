@@ -5,10 +5,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/digineo/texd/xlog"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestFileCategory_FromName(t *testing.T) {
@@ -52,7 +52,7 @@ func TestFileCategory_String(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	assert, require := assert.New(t), require.New(t)
 
-	doc := NewDocument(zap.NewNop(), DefaultEngine, "")
+	doc := NewDocument(xlog.NewNop(), DefaultEngine, "")
 	doc.(*document).fs = afero.NewMemMapFs()
 	for name, size := range map[string]int{
 		"input.tex":              10,

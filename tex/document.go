@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/digineo/texd/xlog"
 	"github.com/spf13/afero"
-	"go.uber.org/zap"
 )
 
 // Mark is used to help identifying the main input file from a list
@@ -46,7 +46,7 @@ func (f *File) hasDocumentClass() bool { return f.flags&flagDocumentClass > 0 }
 func (f *File) hasTexdMark() bool      { return f.flags&flagTexdMark > 0 }
 
 type fileWriter struct {
-	log  *zap.Logger
+	log  xlog.Logger
 	buf  []byte // the first few bytes written to wc
 	off  int    // how many bytes were written to buf
 	wc   io.WriteCloser
@@ -175,7 +175,7 @@ type document struct {
 	files     map[string]*File
 	mainInput string // only present after SetMainInput(), otherwise ask MainInput()
 
-	log    *zap.Logger
+	log    xlog.Logger
 	image  string
 	engine Engine
 
@@ -185,7 +185,7 @@ type document struct {
 
 var _ Document = (*document)(nil)
 
-func NewDocument(log *zap.Logger, engine Engine, image string) Document {
+func NewDocument(log xlog.Logger, engine Engine, image string) Document {
 	return &document{
 		fs:        texFs,
 		files:     make(map[string]*File),
@@ -219,7 +219,7 @@ func (doc *document) AddFile(name, contents string) error {
 	}
 	defer func() { _ = wc.Close() }()
 
-	log := doc.log.With(zap.String("filename", name))
+	log := doc.log.With(xlog.String("filename", name))
 	log.Info("adding file")
 
 	_, err = wc.Write([]byte(contents))
@@ -278,7 +278,7 @@ func (doc *document) NewWriter(name string) (wc io.WriteCloser, err error) {
 		return
 	}
 
-	log := doc.log.With(zap.String("filename", file.name))
+	log := doc.log.With(xlog.String("filename", file.name))
 	if isMainCandidate(file.name) {
 		log.Debug("mark as candidate")
 		file.flags |= flagCandidate
@@ -302,7 +302,7 @@ func (doc *document) SetMainInput(name string) error {
 		return InputError("unknown input file name", nil, nil)
 	}
 
-	doc.log.Info("setting main input", zap.String("filename", name))
+	doc.log.Info("setting main input", xlog.String("filename", name))
 	doc.mainInput = name
 	return nil
 }

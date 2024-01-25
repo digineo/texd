@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/digineo/texd/tex"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type Exec interface {
-	Run(context.Context, *zap.Logger) error
+	Run(context.Context, xlog.Logger) error
 }
 
 // Document is a sub-set of the tex.Document interface.
