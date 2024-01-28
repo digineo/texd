@@ -63,7 +63,7 @@ func TestHandleStatus_withFailIO(t *testing.T) {
 	log, err := xlog.New(
 		xlog.AsText(),
 		xlog.WriteTo(&buf),
-		xlog.MockClock(time.Unix(1650000000, 0)),
+		xlog.MockClock(time.Unix(1650000000, 0).UTC()),
 	)
 	require.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestHandleStatus_withFailIO(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.code)
 	assert.Equal(t, mimeTypeJSON, rec.h.Get("Content-Type"))
 	assert.Equal(t, strings.Join([]string{
-		"time=2022-04-15T07:20:00.000+02:00",
+		"time=2022-04-15T05:20:00.000Z",
 		"level=ERROR",
 		`msg="failed to write response"`,
 		`error="io: read/write on closed pipe"`,
