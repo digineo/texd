@@ -47,7 +47,7 @@ func NewDockerClient(log xlog.Logger, baseDir string) (h *DockerClient, err erro
 	}
 
 	if log == nil {
-		log = xlog.NewNop()
+		log = xlog.NewDiscard()
 	}
 	dc := &DockerClient{
 		log: log,

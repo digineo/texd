@@ -1,55 +1,71 @@
-// Package xlog provides a very thin (and maybe leaky)
-// wrapper aroud log/slog.
+// Package xlog provides a very thin wrapper aroud log/slog.
 package xlog
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"runtime"
 	"time"
 )
 
+// A Logger allows writing messages with various severities.
 type Logger interface {
+	// Debug writes log messages with DEBUG severity.
 	Debug(msg string, args ...any)
+	// Info writes log messages with INFO severity.
 	Info(msg string, args ...any)
+	// Warn writes log messages with WARN severity.
 	Warn(msg string, args ...any)
+	// Error writes log messages with ERROR severity.
 	Error(msg string, args ...any)
+	// Fatal writes log messages with ERROR severity, and then
+	// exits the whole program.
 	Fatal(msg string, args ...any)
-
+	// With creates a child logger, and adds the given arguments
+	// to each child message output
 	With(args ...any) Logger
 }
 
 type logger struct {
-	l       *slog.Logger
+	l *slog.Logger
+	// context holds the arguments received from With().
 	context []any
 }
 
-type LoggerType int
+func New(opt ...Option) (Logger, error) {
+	opts := options{
+		handlerOpts: &slog.HandlerOptions{},
+	}
 
-const (
-	TypeText LoggerType = iota // maps to slog.TextHandler
-	TypeJSON                   // maps to slog.JSONHandler
-	TypeNop                    // discards log records
-)
+	for _, o := range opt {
+		if err := o(&opts); err != nil {
+			return nil, err
+		}
+	}
 
-func New(typ LoggerType, w io.Writer, o *slog.HandlerOptions) (Logger, error) {
-	var h slog.Handler
-	switch typ {
-	case TypeText:
-		h = slog.NewTextHandler(w, o)
-	case TypeJSON:
-		h = slog.NewTextHandler(w, o)
-	case TypeNop:
-		return &nop{}, nil
-	default:
-		return nil, fmt.Errorf("unknown LoggerType: %#v", typ)
+	// the discard logger doesn't require any further setup
+	if opts.discard {
+		return &discard{}, nil
+	}
+
+	// setup mock time
+	if opts.clock != nil {
+		repl := opts.handlerOpts.ReplaceAttr
+		opts.handlerOpts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 && a.Key == slog.TimeKey {
+				a.Value = slog.TimeValue(opts.clock.Now())
+			}
+			if repl == nil {
+				return a
+			}
+			return repl(groups, a)
+		}
 	}
 
 	return &logger{
-		l: slog.New(h),
+		l: slog.New(opts.buildHandler(&opts)),
 	}, nil
 }
 

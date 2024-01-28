@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"bytes"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/digineo/texd/xlog"
 	"github.com/stretchr/testify/assert"
@@ -23,20 +24,25 @@ func TestLogging(t *testing.T) {
 	h = RequestID(h)
 
 	var buf bytes.Buffer
-	log, err := xlog.New(xlog.TypeText, &buf, &slog.HandlerOptions{
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-			return a
-		},
-	})
+	log, err := xlog.New(
+		xlog.AsText(),
+		xlog.WriteTo(&buf),
+		xlog.MockClock(time.Unix(1650000000, 0)),
+	)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	WithLogging(log)(h).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	require.Equal(t, http.StatusOK, w.Code)
 
-	msg := `level=INFO msg="" method=GET status=200 bytes=0 host=192.0.2.1 url=/` + "\n"
-	assert.Equal(t, msg, buf.String())
+	assert.Equal(t, strings.Join([]string{
+		"time=2022-04-15T07:20:00.000+02:00",
+		"level=INFO",
+		`msg=""`,
+		"method=GET",
+		"status=200",
+		"bytes=0",
+		"host=192.0.2.1",
+		"url=/",
+	}, " ")+"\n", buf.String())
 }

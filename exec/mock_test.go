@@ -25,7 +25,7 @@ func TestMock_Run_extractError(t *testing.T) {
 	doc := &mockDocument{"/", io.ErrClosedPipe, "a", nil}
 	subject := Mock(true, "content")(doc)
 
-	err := subject.Run(bg, xlog.NewNop())
+	err := subject.Run(bg, xlog.NewDiscard())
 	require.EqualError(t, err, "invalid document: "+io.ErrClosedPipe.Error())
 }
 
@@ -34,7 +34,7 @@ func TestMock_Run_invalidMainfilePanics(t *testing.T) {
 	subject := Mock(true, "content")(doc)
 
 	require.PanicsWithValue(t, "malformed input file: missing extension",
-		func() { _ = subject.Run(bg, xlog.NewNop()) })
+		func() { _ = subject.Run(bg, xlog.NewDiscard()) })
 }
 
 func TestMock_Run_noAddFilePanics(t *testing.T) {
@@ -42,7 +42,7 @@ func TestMock_Run_noAddFilePanics(t *testing.T) {
 	subject := Mock(true, "content")(doc)
 
 	require.PanicsWithValue(t, "can't add files to document",
-		func() { _ = subject.Run(bg, xlog.NewNop()) })
+		func() { _ = subject.Run(bg, xlog.NewDiscard()) })
 }
 
 type mockDockumentWithAddFile struct {
@@ -64,7 +64,7 @@ func TestMock_Run_errorOnAddFilePanics(t *testing.T) {
 	doc.On("AddFile", "a.log", "content").Return(io.ErrClosedPipe)
 
 	require.PanicsWithError(t, "failed to store result file: "+io.ErrClosedPipe.Error(),
-		func() { _ = subject.Run(bg, xlog.NewNop()) })
+		func() { _ = subject.Run(bg, xlog.NewDiscard()) })
 }
 
 func TestMock_Run_shouldFailCapturesLog(t *testing.T) {
@@ -75,7 +75,7 @@ func TestMock_Run_shouldFailCapturesLog(t *testing.T) {
 
 	doc.On("AddFile", "a.log", "content").Return(nil)
 
-	err := subject.Run(bg, xlog.NewNop())
+	err := subject.Run(bg, xlog.NewDiscard())
 	require.EqualError(t, err, "compilation failed")
 }
 
@@ -87,6 +87,6 @@ func TestMock_Run_shouldFailCapturesResult(t *testing.T) {
 
 	doc.On("AddFile", "a.pdf", "%PDF/1.5").Return(nil)
 
-	err := subject.Run(bg, xlog.NewNop())
+	err := subject.Run(bg, xlog.NewDiscard())
 	require.NoError(t, err)
 }

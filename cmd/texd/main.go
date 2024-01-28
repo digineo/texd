@@ -281,19 +281,14 @@ func printVersion() {
 }
 
 func setupLogger() (xlog.Logger, error) {
-	lvl, err := xlog.ParseLevel(logLevel)
-	if err != nil {
-		return nil, err
+	o := []xlog.Option{
+		xlog.LeveledString(logLevel),
+		xlog.WithSource(),
 	}
-
-	o := &slog.HandlerOptions{
-		AddSource: true,
-		// XXX: provide ReplaceAttr callback to normalize Source locations?
-		Level: lvl,
-	}
-
 	if texd.Development() {
-		return xlog.New(xlog.TypeText, os.Stderr, o)
+		o = append(o, xlog.WriteTo(os.Stderr), xlog.AsText())
+	} else {
+		o = append(o, xlog.WriteTo(os.Stdout), xlog.AsJSON())
 	}
-	return xlog.New(xlog.TypeJSON, os.Stdout, o)
+	return xlog.New(o...)
 }

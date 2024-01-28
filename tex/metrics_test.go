@@ -52,7 +52,7 @@ func TestFileCategory_String(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	assert, require := assert.New(t), require.New(t)
 
-	doc := NewDocument(xlog.NewNop(), DefaultEngine, "")
+	doc := NewDocument(xlog.NewDiscard(), DefaultEngine, "")
 	doc.(*document).fs = afero.NewMemMapFs()
 	for name, size := range map[string]int{
 		"input.tex":              10,

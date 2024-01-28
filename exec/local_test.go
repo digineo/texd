@@ -58,7 +58,7 @@ func TestLocalExec_Run(t *testing.T) {
 			// create local exec
 			exec := LocalExec(tt.doc).(*localExec) //nolint:forcetypeassert
 			exec.path = tt.path
-			err := exec.Run(context.Background(), xlog.NewNop())
+			err := exec.Run(context.Background(), xlog.NewDiscard())
 
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)
