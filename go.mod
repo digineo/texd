@@ -64,4 +64,4 @@ require (
 	gotest.tools/v3 v3.5.0 // indirect
 )
 
-replace github.com/spf13/afero => github.com/digineo/afero v1.8.3-0.20220715171204-b7c01b3e0267
+replace github.com/spf13/afero => github.com/digineo/afero v1.9.0
