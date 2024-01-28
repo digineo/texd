@@ -55,7 +55,6 @@ require (
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
@@ -64,4 +63,4 @@ require (
 	gotest.tools/v3 v3.5.0 // indirect
 )
 
-replace github.com/spf13/afero => github.com/digineo/afero v1.9.0
+replace github.com/spf13/afero => github.com/digineo/afero v1.11.1-0.20240128222722-ade8094005cb
