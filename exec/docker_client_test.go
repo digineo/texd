@@ -115,7 +115,7 @@ func (s *dockerClientSuite) SetupTest() {
 	s.cli = &apiMock{}
 	s.subject = &DockerClient{
 		cli: s.cli,
-		log: xlog.NewNop(),
+		log: xlog.NewDiscard(),
 	}
 }
 

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +29,7 @@ func TestHandleStatus(t *testing.T) {
 		mode:           "local",
 		compileTimeout: 3 * time.Second,
 		jobs:           make(chan struct{}, 2),
-		log:            xlog.NewNop(),
+		log:            xlog.NewDiscard(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/status", nil)
@@ -60,14 +60,11 @@ func TestHandleStatus(t *testing.T) {
 
 func TestHandleStatus_withFailIO(t *testing.T) {
 	var buf bytes.Buffer
-	log, err := xlog.New(xlog.TypeText, &buf, &slog.HandlerOptions{
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-			return a
-		},
-	})
+	log, err := xlog.New(
+		xlog.AsText(),
+		xlog.WriteTo(&buf),
+		xlog.MockClock(time.Unix(1650000000, 0)),
+	)
 	require.NoError(t, err)
 
 	svc := &service{
@@ -87,7 +84,10 @@ func TestHandleStatus_withFailIO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.code)
 	assert.Equal(t, mimeTypeJSON, rec.h.Get("Content-Type"))
-
-	msg := `level=ERROR msg="failed to write response" error="io: read/write on closed pipe"` + "\n"
-	assert.Equal(t, msg, buf.String())
+	assert.Equal(t, strings.Join([]string{
+		"time=2022-04-15T07:20:00.000+02:00",
+		"level=ERROR",
+		`msg="failed to write response"`,
+		`error="io: read/write on closed pipe"`,
+	}, " ")+"\n", buf.String())
 }

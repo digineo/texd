@@ -48,7 +48,7 @@ func TestSuite(t *testing.T) {
 func (suite *testSuite) SetupSuite() {
 	require := suite.Require()
 
-	logger, err := xlog.New(xlog.TypeText, os.Stderr, nil)
+	logger, err := xlog.New(xlog.AsText(), xlog.WriteTo(os.Stderr))
 	suite.Require().NoError(err)
 	suite.logger = logger
 
@@ -260,7 +260,7 @@ func (suite *testSuite) TestService_refstore_useKnownRef() {
 	if err != nil {
 		panic(err)
 	}
-	if err = refs.Store(xlog.NewNop(), contents); err != nil {
+	if err = refs.Store(xlog.NewDiscard(), contents); err != nil {
 		panic(err)
 	}
 	contents.Close()

@@ -140,7 +140,7 @@ func Start(opts Options, log xlog.Logger) (func(context.Context) error, error) {
 	return newService(opts, log).start(opts.Addr)
 }
 
-var discardlog = xlog.NewNop()
+var discardlog = xlog.NewDiscard()
 
 func (svc *service) Logger() xlog.Logger {
 	if svc.log == nil {

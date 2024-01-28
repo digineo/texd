@@ -57,7 +57,7 @@ func testFileWriter(t *testing.T, s string, candidate bool) {
 	}
 
 	subject := fileWriter{
-		log:  xlog.NewNop(),
+		log:  xlog.NewDiscard(),
 		file: f,
 		wc:   &nopCloser{Writer: &buf},
 		buf:  make([]byte, 4),
@@ -224,7 +224,7 @@ func TestDocument(t *testing.T) {
 	subject := documentHelper{ //nolint:forcetypeassert
 		t:        t,
 		fs:       afero.Afero{Fs: afero.NewMemMapFs()},
-		document: NewDocument(xlog.NewNop(), DefaultEngine, "").(*document),
+		document: NewDocument(xlog.NewDiscard(), DefaultEngine, "").(*document),
 	}
 	subject.document.fs = subject.fs
 
@@ -279,7 +279,7 @@ func TestDocument_MainInput(t *testing.T) {
 	subject := documentHelper{ //nolint:forcetypeassert
 		t:        t,
 		fs:       afero.Afero{Fs: afero.NewMemMapFs()},
-		document: NewDocument(xlog.NewNop(), DefaultEngine, "").(*document),
+		document: NewDocument(xlog.NewDiscard(), DefaultEngine, "").(*document),
 	}
 	subject.document.fs = subject.fs
 
@@ -335,7 +335,7 @@ func TestNewDocument(t *testing.T) {
 	engine := NewEngine("foo")
 	image := "bar"
 
-	subject := NewDocument(xlog.NewNop(), engine, image)
+	subject := NewDocument(xlog.NewDiscard(), engine, image)
 	require.NotNil(t, subject)
 
 	assert.Equal(t, engine, subject.Engine())
