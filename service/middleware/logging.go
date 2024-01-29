@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -33,7 +34,7 @@ func WithLogging(log xlog.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(rl, r)
 
-			logAttrs := []any{ // []slog.Attr
+			logAttrs := []slog.Attr{
 				RequestIDField(r.Context()),
 				xlog.String("method", r.Method),
 				xlog.Int("status", rl.status),

@@ -1,6 +1,9 @@
 package xlog
 
-import "os"
+import (
+	"log/slog"
+	"os"
+)
 
 type discard struct{}
 
@@ -13,9 +16,9 @@ func NewDiscard() Logger {
 	return &discard{}
 }
 
-func (*discard) Debug(msg string, args ...any) {}
-func (*discard) Info(msg string, args ...any)  {}
-func (*discard) Warn(msg string, args ...any)  {}
-func (*discard) Error(msg string, args ...any) {}
-func (*discard) Fatal(msg string, args ...any) { os.Exit(1) }
-func (d *discard) With(args ...any) Logger     { return d }
+func (*discard) Debug(string, ...slog.Attr) {}
+func (*discard) Info(string, ...slog.Attr)  {}
+func (*discard) Warn(string, ...slog.Attr)  {}
+func (*discard) Error(string, ...slog.Attr) {}
+func (*discard) Fatal(string, ...slog.Attr) { os.Exit(1) }
+func (d *discard) With(...slog.Attr) Logger { return d }
