@@ -13,29 +13,30 @@ import (
 // A Logger allows writing messages with various severities.
 type Logger interface {
 	// Debug writes log messages with DEBUG severity.
-	Debug(msg string, args ...any)
+	Debug(msg string, a ...slog.Attr)
 	// Info writes log messages with INFO severity.
-	Info(msg string, args ...any)
+	Info(msg string, a ...slog.Attr)
 	// Warn writes log messages with WARN severity.
-	Warn(msg string, args ...any)
+	Warn(msg string, a ...slog.Attr)
 	// Error writes log messages with ERROR severity.
-	Error(msg string, args ...any)
+	Error(msg string, a ...slog.Attr)
 	// Fatal writes log messages with ERROR severity, and then
 	// exits the whole program.
-	Fatal(msg string, args ...any)
-	// With creates a child logger, and adds the given arguments
-	// to each child message output
-	With(args ...any) Logger
+	Fatal(msg string, a ...slog.Attr)
+	// With returns a Logger that includes the given attributes
+	// in each output operation.
+	With(a ...slog.Attr) Logger
 }
 
 type logger struct {
 	l *slog.Logger
-	// context holds the arguments received from With().
-	context []any
 }
 
+// New creates a new logger instance. By default, log messages are
+// written to stdout, and the log level is INFO.
 func New(opt ...Option) (Logger, error) {
 	opts := options{
+		output:      os.Stdout,
 		handlerOpts: &slog.HandlerOptions{},
 	}
 
@@ -70,48 +71,42 @@ func New(opt ...Option) (Logger, error) {
 }
 
 // log creates a log record. It is called by Debug, Info, etc.
-func (log *logger) log(level slog.Level, msg string, args ...any) {
+func (log *logger) log(level slog.Level, msg string, a ...slog.Attr) {
 	if !log.l.Enabled(context.Background(), level) {
 		return
 	}
 	var pcs [1]uintptr
 	runtime.Callers(3, pcs[:]) // skip runtime.Callers, log, and our caller
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
-	r.Add(log.context...)
-	r.Add(args...)
+	r.AddAttrs(a...)
 	_ = log.l.Handler().Handle(context.Background(), r)
 }
 
-func (log *logger) Debug(msg string, args ...any) {
-	log.log(slog.LevelDebug, msg, args...)
+func (log *logger) Debug(msg string, a ...slog.Attr) {
+	log.log(slog.LevelDebug, msg, a...)
 }
 
-func (log *logger) Info(msg string, args ...any) {
-	log.log(slog.LevelInfo, msg, args...)
+func (log *logger) Info(msg string, a ...slog.Attr) {
+	log.log(slog.LevelInfo, msg, a...)
 }
 
-func (log *logger) Warn(msg string, args ...any) {
-	log.log(slog.LevelWarn, msg, args...)
+func (log *logger) Warn(msg string, a ...slog.Attr) {
+	log.log(slog.LevelWarn, msg, a...)
 }
 
-func (log *logger) Error(msg string, args ...any) {
-	log.log(slog.LevelError, msg, args...)
+func (log *logger) Error(msg string, a ...slog.Attr) {
+	log.log(slog.LevelError, msg, a...)
 }
 
 // Fatal is the same as Error, but quits the program via os.Exit(1).
-func (log *logger) Fatal(msg string, args ...any) {
-	log.log(slog.LevelError, msg, args...)
+func (log *logger) Fatal(msg string, a ...slog.Attr) {
+	log.log(slog.LevelError, msg, a...)
 	os.Exit(1)
 }
 
-func (log *logger) With(args ...any) Logger {
-	context := make([]any, 0, len(log.context)+len(args))
-	context = append(context, log.context...)
-	context = append(context, args...)
-
+func (log *logger) With(a ...slog.Attr) Logger {
 	return &logger{
-		l:       log.l,
-		context: context,
+		l: slog.New(log.l.Handler().WithAttrs(a)),
 	}
 }
 
