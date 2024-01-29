@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -110,16 +111,18 @@ func (log *logger) With(a ...slog.Attr) Logger {
 	}
 }
 
+// ParseLevel tries to convert a (case-insensitive) string into a
+// slog.Level. Accepted values are "debug", "info", "warn", "warning",
+// "error" and "fatal". Other input will result in err not being nil.
 func ParseLevel(s string) (l slog.Level, err error) {
-	switch s {
-	case "debug", "DEBUG":
+	switch strings.ToLower(s) {
+	case "debug":
 		l = slog.LevelDebug
-	case "info", "INFO", "": // make the zero value useful
+	case "info", "": // make the zero value useful
 		l = slog.LevelInfo
-	case "warn", "WARN":
+	case "warn", "warning":
 		l = slog.LevelWarn
-	case "error", "ERROR",
-		"fatal", "FATAL":
+	case "error", "fatal":
 		l = slog.LevelError
 	default:
 		err = fmt.Errorf("unknown log level: %q", s)

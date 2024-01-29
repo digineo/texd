@@ -2,6 +2,8 @@ package xlog
 
 import "log/slog"
 
+// Convenience slog.Attr generators. Allows cluttering imports (no need
+// to import both log/slog and xlog).
 var (
 	String   = slog.String
 	Int64    = slog.Int64
@@ -15,14 +17,21 @@ var (
 	Any      = slog.Any
 )
 
+// Key used to denote error values.
 const ErrorKey = "error"
 
+// ErrorValue holds an error value.
 type ErrorValue struct{ error }
 
+// Value extracts the error message.
 func (err ErrorValue) Value() slog.Value {
 	return slog.StringValue(err.Error())
 }
 
+// Error constructs a first-class error log attribute.
+//
+// Not to be confused with (xlog.Logger).Error() or (log/slog).Error(),
+// which produce an error-level log message.
 func Error(err error) slog.Attr {
 	return slog.Any(ErrorKey, ErrorValue{err})
 }
