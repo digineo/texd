@@ -31,7 +31,7 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/digineo/texd/internal"
 	"github.com/digineo/texd/refstore"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 // Defaults copied from github.com/bradfitz/gomemcache/memcache for clarity
@@ -76,22 +76,22 @@ type store struct {
 // The following URI parameters are understood (any similarity with
 // github.com/bradfitz/gomemcache/memcache is intentional):
 //
-//	- addr=<host> adds an additional server to the pool. This option can
-//	  be specified multiple times. If an address is specified multiple times,
-//	  it gains a proportional amount of weight.
-//	  Note: you may omit config.Host, and only use addr=<host> URI parameters.
-//	- timeout=<duration> to specify the read/write timeout. The parameter
-//	  value will be parsed with time.ParseDuration(). Values < 0 are invalid
-//	  (New() will return an error) and the zero value is substituted with
-//	  a default (100ms).
-//	- max_idle_conns=<num> specifies the maximum number of idle connections
-//	  that will be maintained per address. Negative values are invalid,
-//	  and the zero value is substituted with a default (2).
-//	- expiration=<duration> adds a lifetime to reference files. A value <= 0
-//	  is ignored (no error). The duration must fit into a int32, which
-//	  imposes a maximum duration of just over 68 years.
-//	- key_prefix=<string> adds a custom prefix to file reference hashes.
-//	  By default, this adapter prefixes reference hashes with "texd/".
+//   - addr=<host> adds an additional server to the pool. This option can
+//     be specified multiple times. If an address is specified multiple times,
+//     it gains a proportional amount of weight.
+//     Note: you may omit config.Host, and only use addr=<host> URI parameters.
+//   - timeout=<duration> to specify the read/write timeout. The parameter
+//     value will be parsed with time.ParseDuration(). Values < 0 are invalid
+//     (New() will return an error) and the zero value is substituted with
+//     a default (100ms).
+//   - max_idle_conns=<num> specifies the maximum number of idle connections
+//     that will be maintained per address. Negative values are invalid,
+//     and the zero value is substituted with a default (2).
+//   - expiration=<duration> adds a lifetime to reference files. A value <= 0
+//     is ignored (no error). The duration must fit into a int32, which
+//     imposes a maximum duration of just over 68 years.
+//   - key_prefix=<string> adds a custom prefix to file reference hashes.
+//     By default, this adapter prefixes reference hashes with "texd/".
 //
 // Note that server addresses (whether provided as DNS host name or via query
 // parameters) should include a port number (by default, Memcached listens
@@ -134,7 +134,7 @@ func New(config *url.URL, _ refstore.RetentionPolicy) (refstore.Adapter, error) 
 	return adapter, nil
 }
 
-func (s *store) CopyFile(_ *zap.Logger, id refstore.Identifier, w io.Writer) error {
+func (s *store) CopyFile(_ xlog.Logger, id refstore.Identifier, w io.Writer) error {
 	val, err := s.get(s.key(id))
 	if err != nil {
 		if errors.Is(err, memcache.ErrCacheMiss) {
@@ -149,7 +149,7 @@ func (s *store) CopyFile(_ *zap.Logger, id refstore.Identifier, w io.Writer) err
 	return nil
 }
 
-func (s *store) Store(_ *zap.Logger, r io.Reader) error {
+func (s *store) Store(_ xlog.Logger, r io.Reader) error {
 	val, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("memcached: failed to read reference file: %w", err)

@@ -5,9 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 const HeaderKey = "X-Request-Id"
@@ -39,9 +40,9 @@ func GetRequestID(r *http.Request) (string, bool) {
 	return id, ok
 }
 
-func RequestIDField(ctx context.Context) zap.Field {
+func RequestIDField(ctx context.Context) slog.Attr {
 	if id, ok := ctx.Value(ContextKey).(string); ok {
-		return zap.String("request-id", id)
+		return xlog.String("request-id", id)
 	}
-	return zap.Skip()
+	return slog.Attr{}
 }

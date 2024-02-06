@@ -1,10 +1,11 @@
 package middleware
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type responseLogger struct {
@@ -25,7 +26,7 @@ func (l *responseLogger) WriteHeader(status int) {
 
 // Logging performs request logging. This method takes heavy inspiration
 // from (github.com/gorilla/handlers).CombinedLoggingHandler.
-func WithLogging(log *zap.Logger) func(http.Handler) http.Handler {
+func WithLogging(log xlog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rl := &responseLogger{ResponseWriter: w}
@@ -33,16 +34,16 @@ func WithLogging(log *zap.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(rl, r)
 
-			f := []zap.Field{
+			logAttrs := []slog.Attr{
 				RequestIDField(r.Context()),
-				zap.String("method", r.Method),
-				zap.Int("status", rl.status),
-				zap.Int("bytes", rl.n),
+				xlog.String("method", r.Method),
+				xlog.Int("status", rl.status),
+				xlog.Int("bytes", rl.n),
 			}
 
 			if url.User != nil {
 				if name := url.User.Username(); name != "" {
-					f = append(f, zap.String("username", name))
+					logAttrs = append(logAttrs, xlog.String("username", name))
 				}
 			}
 
@@ -50,7 +51,7 @@ func WithLogging(log *zap.Logger) func(http.Handler) http.Handler {
 			if err != nil {
 				host = r.RemoteAddr
 			}
-			f = append(f, zap.String("host", host))
+			logAttrs = append(logAttrs, xlog.String("host", host))
 
 			// Requests using the CONNECT method over HTTP/2.0 must use
 			// the authority field (aka r.Host) to identify the target.
@@ -62,9 +63,9 @@ func WithLogging(log *zap.Logger) func(http.Handler) http.Handler {
 			if uri == "" {
 				uri = url.RequestURI()
 			}
-			f = append(f, zap.String("url", uri))
+			logAttrs = append(logAttrs, xlog.String("url", uri))
 
-			log.Info("", f...)
+			log.Info("", logAttrs...)
 		})
 	}
 }

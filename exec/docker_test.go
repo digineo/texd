@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/digineo/texd/tex"
+	"github.com/digineo/texd/xlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type dockerClientMock struct {
@@ -24,7 +24,7 @@ func (m *dockerClientMock) Run(ctx context.Context, tag, wd string, cmd []string
 
 func TestDockerClient_Executor(t *testing.T) {
 	subject := (&DockerClient{
-		log: zap.NewNop(),
+		log: xlog.NewDiscard(),
 		cli: &apiMock{},
 	}).Executor(&mockDocument{})
 	require.NotNil(t, subject)
@@ -37,7 +37,7 @@ func TestDockerExec_invalidDocument(t *testing.T) {
 		cli:      nil, // not accessed
 	}
 
-	err := exec.Run(bg, zap.NewNop())
+	err := exec.Run(bg, xlog.NewDiscard())
 	require.EqualError(t, err, "invalid document: "+io.ErrClosedPipe.Error())
 }
 
@@ -55,7 +55,7 @@ func TestDockerExec_latexmkFailed(t *testing.T) {
 		cli:      cli,
 	}
 
-	err := exec.Run(bg, zap.NewNop())
+	err := exec.Run(bg, xlog.NewDiscard())
 	require.EqualError(t, err, "compilation failed: "+errStart.Error())
 	assert.True(t, tex.IsCompilationError(err))
 
@@ -78,6 +78,6 @@ func TestDockerExec_success(t *testing.T) {
 		cli:      cli,
 	}
 
-	err := exec.Run(bg, zap.NewNop())
+	err := exec.Run(bg, xlog.NewDiscard())
 	require.NoError(t, err)
 }
