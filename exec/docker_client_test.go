@@ -36,7 +36,7 @@ type apiMock struct {
 
 func (m *apiMock) ImageList(
 	ctx context.Context,
-	options types.ImageListOptions,
+	options image.ListOptions,
 ) ([]image.Summary, error) {
 	args := m.Called(ctx, options)
 	// channel trickery to allow TestSetImages create different return values
@@ -55,7 +55,7 @@ func (m *apiMock) ContainerInspect(
 func (m *apiMock) ImagePull(
 	ctx context.Context,
 	ref string,
-	options types.ImagePullOptions,
+	options image.PullOptions,
 ) (io.ReadCloser, error) {
 	args := m.Called(ctx, ref, options)
 	return args.Get(0).(io.ReadCloser), args.Error(1)
@@ -176,7 +176,7 @@ func (s *dockerClientSuite) TestFindImage() {
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
 
 	img, err := s.subject.findImage(bg, tag)
 	s.Require().NoError(err)
@@ -192,7 +192,7 @@ func (s *dockerClientSuite) TestFindImage_failure() {
 	errCh <- errors.New("test-list-error")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
 
 	_, err := s.subject.findImage(bg, "test:latest")
 	s.Require().EqualError(err, "test-list-error")
@@ -380,7 +380,7 @@ func (s *dockerClientSuite) TestConfigureDinD_withoutCIDFile() {
 func (s *dockerClientSuite) TestPull() {
 	var buf bytes.Buffer
 
-	s.cli.On("ImagePull", bg, "localhost/test/image", types.ImagePullOptions{}).
+	s.cli.On("ImagePull", bg, "localhost/test/image", image.PullOptions{}).
 		Return(io.NopCloser(&buf), nil)
 
 	p := newProgressReporter(os.Stderr)
@@ -389,7 +389,7 @@ func (s *dockerClientSuite) TestPull() {
 }
 
 func (s *dockerClientSuite) TestPull_failure() {
-	s.cli.On("ImagePull", bg, "test:latest", types.ImagePullOptions{}).
+	s.cli.On("ImagePull", bg, "test:latest", image.PullOptions{}).
 		Return(io.NopCloser(nil), errors.New("test-pull-failure"))
 
 	err := s.subject.pull(bg, "test:latest", nil)
@@ -416,8 +416,8 @@ func (s *dockerClientSuite) TestSetImages() {
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v4", types.ImagePullOptions{}).
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v4", image.PullOptions{}).
 		Return(io.NopCloser(&bytes.Buffer{}), nil)
 
 	found, err := s.subject.SetImages(bg, false, "test:v3", "test:v4")
@@ -433,7 +433,7 @@ func (s *dockerClientSuite) TestSetImages_errFindImage() {
 	errCh <- errors.New("unable to resolve")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).
+	s.cli.On("ImageList", bg, image.ListOptions{}).
 		Return(imgCh, errCh)
 
 	found, err := s.subject.SetImages(bg, false, "test:v0")
@@ -449,8 +449,8 @@ func (s *dockerClientSuite) TestSetImages_errPullImage() {
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
 		Return(io.NopCloser(&bytes.Buffer{}), errors.New("connection reset"))
 
 	found, err := s.subject.SetImages(bg, false, "test:v0")
@@ -467,8 +467,6 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
 	errCh <- errors.New("image-list-err")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
 		Return(io.NopCloser(&bytes.Buffer{}), nil)
 
 	found, err := s.subject.SetImages(bg, true, "test:v0")
@@ -483,8 +481,8 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageB() {
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, types.ImageListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", types.ImagePullOptions{}).
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
 		Return(io.NopCloser(&bytes.Buffer{}), nil)
 
 	found, err := s.subject.SetImages(bg, true, "test:v0")

@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/digineo/texd/service/middleware"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -117,7 +116,7 @@ func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...
 // have reports whether the given tag is present on the current Docker
 // host.
 func (dc *DockerClient) findImage(ctx context.Context, tag string) (summary image.Summary, err error) {
-	images, err := dc.cli.ImageList(ctx, types.ImageListOptions{})
+	images, err := dc.cli.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		return
 	}
@@ -155,7 +154,7 @@ func (p *progess) report(r io.Reader) error {
 // pull pulls the given image tag. Progress is reported to p, unless
 // p is nil.
 func (dc *DockerClient) pull(ctx context.Context, tag string, p *progess) error {
-	r, err := dc.cli.ImagePull(ctx, tag, types.ImagePullOptions{})
+	r, err := dc.cli.ImagePull(ctx, tag, image.PullOptions{})
 	if err != nil {
 		return err
 	}
