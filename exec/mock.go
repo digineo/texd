@@ -57,7 +57,9 @@ func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
 		outfile = main[:dot] + ".pdf"
 	}
 
-	adder, ok := x.doc.(interface{ AddFile(string, string) error })
+	adder, ok := x.doc.(interface {
+		AddFile(name string, content string) error
+	})
 	if !ok {
 		panic("can't add files to document")
 	}

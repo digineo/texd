@@ -41,7 +41,7 @@ func (m *apiMock) ImageList(
 	args := m.Called(ctx, options)
 	// channel trickery to allow TestSetImages create different return values
 	// (and work around a limitation of the mock framework)
-	return <-args.Get(0).(chan []image.Summary), <-args.Get(1).(chan error)
+	return <-args.Get(0).(chan []image.Summary), <-args.Get(1).(chan error) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerInspect(
@@ -49,7 +49,7 @@ func (m *apiMock) ContainerInspect(
 	id string,
 ) (types.ContainerJSON, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(types.ContainerJSON), args.Error(1)
+	return args.Get(0).(types.ContainerJSON), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ImagePull(
@@ -58,7 +58,7 @@ func (m *apiMock) ImagePull(
 	options image.PullOptions,
 ) (io.ReadCloser, error) {
 	args := m.Called(ctx, ref, options)
-	return args.Get(0).(io.ReadCloser), args.Error(1)
+	return args.Get(0).(io.ReadCloser), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerLogs(
@@ -67,7 +67,7 @@ func (m *apiMock) ContainerLogs(
 	options container.LogsOptions,
 ) (io.ReadCloser, error) {
 	args := m.Called(ctx, container, options)
-	return args.Get(0).(io.ReadCloser), args.Error(1)
+	return args.Get(0).(io.ReadCloser), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerCreate(
@@ -79,7 +79,7 @@ func (m *apiMock) ContainerCreate(
 	containerName string,
 ) (container.CreateResponse, error) {
 	args := m.Called(ctx, config, host, networking, platform, containerName)
-	return args.Get(0).(container.CreateResponse), args.Error(1)
+	return args.Get(0).(container.CreateResponse), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerStart(
@@ -97,7 +97,7 @@ func (m *apiMock) ContainerWait(
 	condition container.WaitCondition,
 ) (<-chan container.WaitResponse, <-chan error) {
 	args := m.Called(ctx, containerID, condition)
-	return args.Get(0).(chan container.WaitResponse), args.Get(1).(chan error)
+	return args.Get(0).(chan container.WaitResponse), args.Get(1).(chan error) //nolint:forcetypeassert
 }
 
 type dockerClientSuite struct {
@@ -467,6 +467,8 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
 	errCh <- errors.New("image-list-err")
 	close(errCh)
 
+	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
 		Return(io.NopCloser(&bytes.Buffer{}), nil)
 
 	found, err := s.subject.SetImages(bg, true, "test:v0")

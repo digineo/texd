@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// newClient is swapped in tests
+// newClient is swapped in tests.
 var newClient = func() (client.APIClient, error) {
 	return client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 }
@@ -178,7 +178,7 @@ func (dc *DockerClient) findAllowedImageID(tag string) string {
 	return ""
 }
 
-// containerWd is the work dir inside a (new) container
+// containerWd is the work dir inside a (new) container.
 const containerWd = "/texd"
 
 func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cmd []string) (string, error) {

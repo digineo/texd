@@ -18,12 +18,12 @@ type mockDocument struct {
 
 var _ Document = (*mockDocument)(nil)
 
-// methods of tex.Document needed for this test
+// methods of tex.Document needed for this test.
 func (m *mockDocument) WorkingDirectory() (string, error) { return m.wd, m.wdErr }
 func (m *mockDocument) MainInput() (string, error)        { return m.main, m.mainErr }
 func (*mockDocument) Engine() tex.Engine                  { return tex.DefaultEngine }
 
-// methods required to satisfy the Document interface
+// methods required to satisfy the Document interface.
 func (*mockDocument) Image() string { return "" }
 
 func TestBaseExec_extract(t *testing.T) {

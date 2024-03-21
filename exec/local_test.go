@@ -56,14 +56,14 @@ func TestLocalExec_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			// create local exec
-			exec := LocalExec(tt.doc).(*localExec)
+			exec := LocalExec(tt.doc).(*localExec) //nolint:forcetypeassert
 			exec.path = tt.path
 			err := exec.Run(context.Background(), zap.NewNop())
 
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)
 			} else if assert.EqualError(t, err, tt.expectedErr) {
-				cErr := err.(*tex.ErrWithCategory)
+				cErr := err.(*tex.ErrWithCategory) //nolint:forcetypeassert
 				if tt.expectedOutput != "" {
 					assert.Equal(t, tt.expectedOutput, cErr.Extra()["output"])
 				}

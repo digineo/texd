@@ -33,7 +33,7 @@ func (r *baseDirRewrite) MountConfig(path string) mount.Mount {
 
 var ErrMissingWorkdirVolume = errors.New("missing Docker volume or bind mount for work directory")
 
-// swapped in tests
+// swapped in tests.
 var (
 	dockerFs = afero.NewOsFs()
 	hostname = os.Hostname

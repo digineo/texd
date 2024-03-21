@@ -8,7 +8,7 @@ import (
 )
 
 type Exec interface {
-	Run(context.Context, *zap.Logger) error
+	Run(ctx context.Context, logger *zap.Logger) error
 }
 
 // Document is a sub-set of the tex.Document interface.
