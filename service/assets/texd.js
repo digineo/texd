@@ -155,7 +155,7 @@ const app = Vue.createApp({
         } else {
           this.result = {
             type: "error",
-            messge: `unexpected response: ${res.statusText}`,
+            message: `unexpected response: ${res.statusText}`,
             status,
             ct,
           }

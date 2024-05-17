@@ -594,7 +594,7 @@ func (s *dockerClientSuite) TestRun_errContainerCreate() {
 	s.Assert().Equal("", out)
 }
 
-func (s *dockerClientSuite) TestRun_errRetreiveLogs() {
+func (s *dockerClientSuite) TestRun_errRetrieveLogs() {
 	const runningID = "7ea"
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)

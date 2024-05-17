@@ -30,7 +30,7 @@ nfpms:
     homepage: https://github.com/digineo/texd
     maintainer: Dominik Menke <dom@digineo.de>
     description: |-
-      texd wraps a local TeX installion into a web service.
+      texd wraps a local TeX installation into a web service.
       Alternatively, texd executes each compilation job in an isolated
       Docker container.
     license: MIT
@@ -55,7 +55,7 @@ nfpms:
     maintainer: Dominik Menke <dom@digineo.de>
     description: |-
       texd-tools includes command line tools useful to interact with
-      a texd server. Currenty, the following tools are bundled:
+      a texd server. Currently, the following tools are bundled:
 
       * texd-render: an HTTP client to compile source files to PDF
     license: MIT

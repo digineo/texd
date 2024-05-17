@@ -336,7 +336,7 @@ This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021) (preloaded forma
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-... ommitting some lines ...
+... omitting some lines ...
 ! LaTeX Error: File `missing.tex' not found.
 
 Type X to quit or <RETURN> to proceed,
@@ -439,12 +439,12 @@ Anyway, consider the UI only as demonstrator for the API.
 
 ## Reference store
 
-texd has the ability to re-use previously sent material. This allows you to reduce the amount
+texd has the ability to reuse previously sent material. This allows you to reduce the amount
 of data you need to transmit with each render request. Following a back-of-the-envelope calculation:
 
 - If you want to generate 1000 documents, each including a font with 400 kB in size, and a logo
   file with 100 kB in size, you will need to transmit 500 MB of the same two files in total.
-- If you can re-use those two assets, you would only need to transmit them once, and use a reference
+- If you can reuse those two assets, you would only need to transmit them once, and use a reference
   hash for each subsequent request. The total then reduces 1×500 kB (complete assets for the first
   request) + 999×100 Byte (50 Byte per reference hash for subsequent requests) = 599.9 kB.
 
@@ -584,7 +584,7 @@ Notes:
 ## History
 
 texd came to life because I've build dozens of Rails applications, which all needed to build PDF
-documents in one form or another (from recipies, to invoices, order confirmations, reports and
+documents in one form or another (from recipes, to invoices, order confirmations, reports and
 technical documentation). Each server basically needed a local TeX installation (weighing in at
 several 100 MB, up to several GB). Compiling many LaTeX documents also became a bottleneck for
 applications running on otherwise modest hardware (or cloud VMs), as this process is also

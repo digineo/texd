@@ -132,28 +132,28 @@ func (dc *DockerClient) findImage(ctx context.Context, tag string) (summary imag
 	return
 }
 
-type progess struct {
+type progress struct {
 	w    io.Writer
 	fd   uintptr
 	term bool
 }
 
-func newProgressReporter(out *os.File) *progess {
+func newProgressReporter(out *os.File) *progress {
 	fd := out.Fd()
-	return &progess{
+	return &progress{
 		w:    out,
 		fd:   fd,
 		term: term.IsTerminal(fd),
 	}
 }
 
-func (p *progess) report(r io.Reader) error {
+func (p *progress) report(r io.Reader) error {
 	return jsonmessage.DisplayJSONMessagesStream(r, p.w, p.fd, p.term, nil)
 }
 
 // pull pulls the given image tag. Progress is reported to p, unless
 // p is nil.
-func (dc *DockerClient) pull(ctx context.Context, tag string, p *progess) error {
+func (dc *DockerClient) pull(ctx context.Context, tag string, p *progress) error {
 	r, err := dc.cli.ImagePull(ctx, tag, image.PullOptions{})
 	if err != nil {
 		return err

@@ -19,7 +19,7 @@ def log(message):
 
 
 def refhash(filename: str) -> str:
-    '''refhash calculates the file rerference hash for the given file.'''
+    '''refhash calculates the file reference hash for the given file.'''
     h = sha256()
     with open(filename, 'rb') as f:
         for block in iter(lambda: f.read(4096), b''):
