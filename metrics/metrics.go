@@ -36,7 +36,7 @@ var (
 
 	OutputSize = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "texd_output_file_size_bytes",
-		Help:    "Overview of genereted document sizes, success only",
+		Help:    "Overview of generated document sizes, success only",
 		Buckets: prometheus.ExponentialBuckets(2048, 2, 13), // 2 KiB .. 8 MiB
 	})
 

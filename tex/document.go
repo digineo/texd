@@ -91,7 +91,7 @@ func (w *fileWriter) Close() error {
 }
 
 // A Document outlines the methods needed to create a PDF file from TeX
-// sources, whithin the context of TeX.
+// sources, within the context of TeX.
 type Document interface {
 	// WorkingDirectory returns the path to a random directory, for
 	// AddFile and NewWriter to place new files in it. Compilation will
@@ -146,7 +146,7 @@ type Document interface {
 	// compiler. Candidates taken from .tex files in the root working
 	// directory:
 	//	- highest precedence have files starting with a "%!texd" mark
-	//	- if none ot those exists, use files with a \documentclass in the
+	//	- if none of those exists, use files with a \documentclass in the
 	//	  first 1 KiB
 	//	- if none of those exists, assume any remaining file could be
 	//	  a main input file.

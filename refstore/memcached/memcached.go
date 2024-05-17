@@ -140,7 +140,7 @@ func (s *store) CopyFile(_ *zap.Logger, id refstore.Identifier, w io.Writer) err
 		if errors.Is(err, memcache.ErrCacheMiss) {
 			return refstore.ErrUnknownReference
 		}
-		return fmt.Errorf("memcached: failed to retreive storage object: %w", err)
+		return fmt.Errorf("memcached: failed to retrieve storage object: %w", err)
 	}
 
 	if _, err = io.Copy(w, bytes.NewReader(val)); err != nil {
