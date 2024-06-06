@@ -116,11 +116,11 @@ test-load: tmp ## sends 200 documents to a running instance
 
 .PHONY: release-test
 release-test: ## runs goreleaser, but skips publishing
-	goreleaser release --rm-dist --skip-publish
+	goreleaser release --clean --skip=publish
 
 .PHONY: release-publish
 release-publish: ## runs goreleaser and publishes artifacts
-	goreleaser release --rm-dist
+	goreleaser release --clean
 
 .PHONY: docker-latest
 docker-latest: build ## builds a Docker container with the latest binary
