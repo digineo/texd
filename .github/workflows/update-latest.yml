@@ -47,7 +47,7 @@ jobs:
               workflow_id: 'release.yml',
               ref:         releaseTag,
               inputs: {
-                goreleaser:  'false',
+                goreleaser:  false,
                 releaseType: 'release',
               }
             })
@@ -60,7 +60,7 @@ jobs:
                 workflow_id: 'release.yml',
                 ref:         'master',
                 inputs: {
-                  goreleaser:  'false',
+                  goreleaser:  false,
                   releaseType: 'dev',
                 }
               })
