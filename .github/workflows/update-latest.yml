@@ -21,29 +21,27 @@ jobs:
           # need different token, RELEASE_TOKEN belongs to digineobot
           github-token: ${{ secrets.RELEASE_TOKEN }}
           script: |
-            const { data: { tag_name: releaseTag } } = await github.rest.repos.getLatestRelease({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-            })
-            console.log(`latest release tag name: ${releaseTag}`)
+            const { owner, repo } = context.repo
 
-            const { data: { object: { sha: releaseRef } } } = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              ref:   `tags/${releaseTag}`,
+            const { data: allTags } = await github.rest.git.getMatchingRef({
+              owner,
+              repo,
+              ref: 'tags/v',
             })
-            console.log(`latest release commit: ${releaseRef}`)
+            const { ref, object: { sha: releaseRef } } = allTags[allTags.length - 1],
+                  releaseTag = ref.substring(11)
+            console.log(`latest release: ${releaseTag}, ${releaseRef}`)
 
             const { data: { object: { sha: masterRef } } } = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              ref:   'heads/master',
+              owner,
+              repo,
+              ref: 'heads/master',
             })
             console.log(`master release commit: ${masterRef}`)
 
             await github.rest.actions.createWorkflowDispatch({
-              owner:       context.repo.owner,
-              repo:        context.repo.repo,
+              owner,
+              repo,
               workflow_id: 'release.yml',
               ref:         releaseTag,
               inputs: {
@@ -55,8 +53,8 @@ jobs:
 
             if (releaseRef !== masterRef) {
               await github.rest.actions.createWorkflowDispatch({
-                owner:       context.repo.owner,
-                repo:        context.repo.repo,
+                owner,
+                repo,
                 workflow_id: 'release.yml',
                 ref:         'master',
                 inputs: {
