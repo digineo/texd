@@ -23,13 +23,13 @@ jobs:
           script: |
             const { owner, repo } = context.repo
 
-            const { data: allTags } = await github.rest.git.getMatchingRef({
+            const { data: allTags } = await github.rest.git.listMatchingRefs({
               owner,
               repo,
               ref: 'tags/v',
             })
             const { ref, object: { sha: releaseRef } } = allTags[allTags.length - 1],
-                  releaseTag = ref.substring(11)
+                  releaseTag = ref.substring(10)
             console.log(`latest release: ${releaseTag}, ${releaseRef}`)
 
             const { data: { object: { sha: masterRef } } } = await github.rest.git.getRef({
