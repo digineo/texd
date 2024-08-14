@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
-	github.com/docker/docker v27.1.1+incompatible
+	github.com/docker/docker v27.1.2+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
