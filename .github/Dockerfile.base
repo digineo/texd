@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # This Dockerfile is used by GitHub Actions to build the
 # ghcr.io/digineo/texd:base image on a regular basis.

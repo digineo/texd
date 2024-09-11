@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 ARG GO_VERSION=1.22
 ARG IS_RELEASE=0
-FROM golang:${GO_VERSION}-bullseye as builder
+FROM golang:${GO_VERSION}-bookworm as builder
 
 # This Dockerfile is used by GitHub Actions to build the
 # ghcr.io/digineo/texd:latest image whenever there is a commit pushed
