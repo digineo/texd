@@ -82,14 +82,31 @@ $ docker run --rm -t -p localhost:2201:2201 ghcr.io/digineo/texd:latest
 
 The image `ghcr.io/digineo/texd:latest` is based on Debian Bookworm with
 some texlive packages installed from the Debian repositories (see this
-[`Dockerfile`](./.github/Dockerfile.base) for the current list). Note
-that Debian Bookworm comes with [TeXlive 2022][], while (at the time of
-writing) the current release is TeXlive 2022.
+[`Dockerfile`](./.github/Dockerfile.base) for the current list). This also
+means that the contained TeX distribution is [TeXlive 2022][].
 
 > **Note:**
 >
-> An earlier version of this README made use of `digineode/texd` instead
-> of `ghcr.io/digineo/texd:latest`.
+> If you want/need to run the container with non-root user ID (e.g. when
+> started with sth. like `docker run --user=$(id -un):$(id -gn)`), make
+> sure to also setup a `HOME` directory. Otherwise you'll likely encounter
+> FontConfig caching errors.
+>
+> <details>
+>   <summary>Example</summary>
+>
+>   ```console
+>   $ mkdir -p texd/{home,jobs}
+>   $ docker run --rm -t  \
+>       -p localhost:2201:2201 \
+>       --user $(id -un):$(id -gn) \
+>       -e HOME=/texd/home \
+>       -v $(pwd)/texd/home:/texd/home \
+>       -v $(pwd)/texd/jobs:/texd/jobs \
+>       ghcr.io/digineo/texd:latest \
+>           --job-directory /texd/jobs
+>   ```
+> </details>
 
 When using Gitlab CI, you can add this snippet to your `.gitlab-ci.yml`:
 
