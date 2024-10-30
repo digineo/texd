@@ -18,6 +18,16 @@ import (
 // should specify main files explicitly.
 const Mark = "%!texd"
 
+// When no main input file is given, the first KiB of each TeX file is
+// searched for a `\documentclass` macro. This is another last resort
+// measurement.
+const guessLimit = 1024 // first KiB
+
+const (
+	o_rwx = 0o700 // read, write, execute permissions for owner
+	o_rw  = 0o600 // read and write permissions for owner
+)
+
 // texFs can be overridden in tests.
 var texFs = afero.NewOsFs()
 
@@ -57,8 +67,8 @@ type fileWriter struct {
 func (w *fileWriter) Write(p []byte) (int, error) {
 	if w.file.isCandidate() {
 		// fill buf, if buf has capacity
-		if max := len(w.buf); w.off < max {
-			if n := max - w.off; n > len(p) {
+		if pos := len(w.buf); w.off < pos {
+			if n := pos - w.off; n > len(p) {
 				// p fits completely into buf's rest capacity
 				copy(w.buf[w.off:], p)
 				w.off += len(p)
@@ -271,12 +281,12 @@ func (doc *document) NewWriter(name string) (wc io.WriteCloser, err error) {
 	var ok bool
 	if file.name, ok = cleanpath(name); !ok {
 		err = InputError("invalid file name", nil, nil)
-		return
+		return wc, err
 	}
 
 	if _, exists := doc.files[name]; exists {
 		err = InputError("duplicate file name", nil, nil)
-		return
+		return wc, err
 	} else {
 		doc.files[name] = file
 	}
@@ -284,20 +294,20 @@ func (doc *document) NewWriter(name string) (wc io.WriteCloser, err error) {
 	var wd string
 	wd, err = doc.WorkingDirectory()
 	if err != nil {
-		return // err is already an errWithCategory
+		return wc, err // err is already an errWithCategory
 	}
 
 	if dir := path.Dir(name); dir != "" {
-		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), 0o700); osErr != nil {
+		if osErr := doc.fs.MkdirAll(path.Join(wd, dir), o_rwx); osErr != nil {
 			err = InputError("cannot create directory", osErr, nil)
-			return
+			return wc, err
 		}
 	}
 
-	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	f, osErr := doc.fs.OpenFile(path.Join(wd, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, o_rw)
 	if osErr != nil {
 		err = InputError("cannot create file", osErr, nil)
-		return
+		return wc, err
 	}
 
 	log := doc.log.With(zap.String("filename", file.name))
@@ -310,7 +320,7 @@ func (doc *document) NewWriter(name string) (wc io.WriteCloser, err error) {
 		log:  log,
 		file: file,
 		wc:   f,
-		buf:  make([]byte, 1024),
+		buf:  make([]byte, guessLimit),
 	}, nil
 }
 

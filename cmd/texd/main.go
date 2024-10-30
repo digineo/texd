@@ -27,12 +27,23 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	defaultQueueTimeout      = 10 * time.Second
+	defaultMaxJobSize        = 50 * units.MiB
+	defaultCompileTimeout    = time.Minute
+	defaultRetentionPoolSize = 100 * units.MiB
+
+	exitSuccess = 0
+	exitFlagErr = 2
+	exitTimeout = 10 * time.Second
+)
+
 var opts = service.Options{
 	Addr:           ":2201",
 	QueueLength:    runtime.GOMAXPROCS(0),
-	QueueTimeout:   10 * time.Second,
-	MaxJobSize:     50 * units.MiB,
-	CompileTimeout: time.Minute,
+	QueueTimeout:   defaultQueueTimeout,
+	MaxJobSize:     defaultMaxJobSize,
+	CompileTimeout: defaultCompileTimeout,
 	Mode:           "local",
 	Executor:       exec.LocalExec,
 	KeepJobs:       service.KeepJobsNever,
@@ -59,8 +70,8 @@ var (
 		1: {"purge", "purge-on-start"},
 		2: {"access"},
 	}
-	retPolItems = 1000                                      // number of items in refstore
-	retPolSize  = units.BytesSize(float64(100 * units.MiB)) // max total file size
+	retPolItems = 1000                                               // number of items in refstore
+	retPolSize  = units.BytesSize(float64(defaultRetentionPoolSize)) // max total file size
 )
 
 func retentionPolicy() (refstore.RetentionPolicy, error) {
@@ -69,7 +80,7 @@ func retentionPolicy() (refstore.RetentionPolicy, error) {
 		return &refstore.KeepForever{}, nil
 	case 1:
 		return &refstore.PurgeOnStart{}, nil
-	case 2:
+	case 2: //nolint:mnd
 		sz, err := units.FromHumanSize(retPolSize)
 		if err != nil {
 			return nil, err
@@ -83,10 +94,10 @@ func retentionPolicy() (refstore.RetentionPolicy, error) {
 	panic("not reached")
 }
 
-func parseFlags() []string {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func parseFlags(progname string, args ...string) []string {
+	fs := pflag.NewFlagSet(progname, pflag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", progname)
 		fs.PrintDefaults()
 	}
 
@@ -122,21 +133,21 @@ func parseFlags() []string {
 	fs.StringVar(&retPolSize, "rp-access-size", retPolSize,
 		"for retention-policy=access: maximum total size of items in access list, before evicting files")
 
-	switch err := fs.Parse(os.Args[1:]); {
+	switch err := fs.Parse(args); {
 	case errors.Is(err, pflag.ErrHelp):
 		// pflag already has called fs.Usage
-		os.Exit(0)
+		os.Exit(exitSuccess)
 	case err != nil:
 		fmt.Fprintf(os.Stderr, "Error parsing flags:\n\t%v\n", err)
-		os.Exit(2)
+		os.Exit(exitFlagErr)
 	}
 
 	return fs.Args()
 }
 
-func main() {
+func main() { //nolint:funlen
 	texd.PrintBanner(os.Stdout)
-	images := parseFlags() //nolint:ifshort // func has sideeffects
+	images := parseFlags(os.Args[0], os.Args[1:]...)
 	log, sync := setupLogger()
 	defer sync()
 
@@ -155,12 +166,12 @@ func main() {
 			zap.String("flag", "--tex-engine"),
 			zap.Error(err))
 	}
-	if max, err := units.FromHumanSize(maxJobSize); err != nil {
+	if maxsz, err := units.FromHumanSize(maxJobSize); err != nil {
 		log.Fatal("error parsing maximum job size",
 			zap.String("flag", "--max-job-size"),
 			zap.Error(err))
 	} else {
-		opts.MaxJobSize = max
+		opts.MaxJobSize = maxsz
 	}
 	if storageDSN != "" {
 		rp, err := retentionPolicy()
@@ -202,12 +213,10 @@ func main() {
 	onExit(log, stop)
 }
 
-const exitTimeout = 10 * time.Second
-
 type stopFun func(context.Context) error
 
 func onExit(log *zap.Logger, stopper ...stopFun) {
-	exitCh := make(chan os.Signal, 2)
+	exitCh := make(chan os.Signal, 2) //nolint:mnd // idiomatic
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
 
