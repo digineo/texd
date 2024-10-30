@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -101,6 +102,14 @@ type Document interface {
 	// named directory.
 	WorkingDirectory() (string, error)
 
+	// SetWorkingDirName disables the randomness of WorkingDirectory() by
+	// providing a static name. Extra care should be taken to ensure
+	// concurrent renderings don't accidentally happen in the same directory.
+	//
+	// Calling this method after WorkingDirectory(), AddFile(), or
+	// NewWriter() doesn't have an effect.
+	SetWorkingDirName(name string)
+
 	// AddFile saves the given content as a file in the document's
 	// working directory, with the given name.
 	//
@@ -179,8 +188,9 @@ type document struct {
 	image  string
 	engine Engine
 
-	mkWorkDir    *sync.Once
-	mkWorkDirErr error
+	mkWorkDirName string
+	mkWorkDir     *sync.Once
+	mkWorkDirErr  error
 }
 
 var _ Document = (*document)(nil)
@@ -205,11 +215,23 @@ func (doc *document) WorkingDirectory() (string, error) {
 }
 
 func (doc *document) createWorkDir() {
+	if doc.mkWorkDirName != "" {
+		doc.workdir = filepath.Join(baseJobDir, doc.mkWorkDirName)
+		return
+	}
+
 	if wd, err := afero.TempDir(doc.fs, baseJobDir, "texd-"); err != nil {
 		doc.mkWorkDirErr = UnknownError("creating working directory failed", err, nil)
 	} else {
 		doc.workdir = wd
 	}
+}
+
+func (doc *document) SetWorkingDirName(name string) {
+	if doc.workdir != "" {
+		return // createWorkDir was already called
+	}
+	doc.mkWorkDirName = name
 }
 
 func (doc *document) AddFile(name, contents string) error {

@@ -3,10 +3,10 @@ package middleware
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 
+	"github.com/oklog/ulid/v2"
 	"go.uber.org/zap"
 )
 
@@ -17,11 +17,11 @@ type contextKey string
 const ContextKey = contextKey("request-id")
 
 func generateRequestId() string {
-	b := make([]byte, 6)
-	if _, err := rand.Read(b); err != nil {
+	id, err := ulid.New(ulid.Now(), rand.Reader)
+	if err != nil {
 		panic(fmt.Errorf("rand error: %w", err))
 	}
-	return base64.RawURLEncoding.EncodeToString(b)
+	return id.String()
 }
 
 func RequestID(next http.Handler) http.Handler {

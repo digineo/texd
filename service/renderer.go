@@ -65,6 +65,9 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	defer svc.release()
 
 	doc := tex.NewDocument(log, engine, image)
+	if id, ok := middleware.GetRequestID(req); ok {
+		doc.SetWorkingDirName(id)
+	}
 	defer func() {
 		if svc.shouldKeepJobs(err) {
 			return
