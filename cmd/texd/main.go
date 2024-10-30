@@ -286,7 +286,7 @@ func setupLogger() (xlog.Logger, error) {
 		xlog.WithSource(),
 	}
 	if texd.Development() {
-		o = append(o, xlog.WriteTo(os.Stderr), xlog.AsText())
+		o = append(o, xlog.WriteTo(os.Stderr), xlog.AsText(), xlog.Color())
 	} else {
 		o = append(o, xlog.WriteTo(os.Stdout), xlog.AsJSON())
 	}

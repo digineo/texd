@@ -1,4 +1,4 @@
-// Package xlog provides a very thin wrapper aroud log/slog.
+// Package xlog provides a thin wrapper around [log/slog].
 package xlog
 
 import (
@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/digineo/texd/internal"
 )
 
 // A Logger allows writing messages with various severities.
@@ -37,8 +39,8 @@ type logger struct {
 // written to stdout, and the log level is INFO.
 func New(opt ...Option) (Logger, error) {
 	opts := options{
-		output:      os.Stdout,
-		handlerOpts: &slog.HandlerOptions{},
+		level:  slog.LevelInfo,
+		output: os.Stdout,
 	}
 
 	for _, o := range opt {
@@ -53,22 +55,15 @@ func New(opt ...Option) (Logger, error) {
 	}
 
 	// setup mock time
+	h := opts.buildHandler(&opts)
 	if opts.clock != nil {
-		repl := opts.handlerOpts.ReplaceAttr
-		opts.handlerOpts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
-			if len(groups) == 0 && a.Key == slog.TimeKey {
-				a.Value = slog.TimeValue(opts.clock.Now())
-			}
-			if repl == nil {
-				return a
-			}
-			return repl(groups, a)
+		h = &mockTimeHandler{
+			clock:   opts.clock,
+			Handler: h,
 		}
 	}
 
-	return &logger{
-		l: slog.New(opts.buildHandler(&opts)),
-	}, nil
+	return &logger{l: slog.New(h)}, nil
 }
 
 // log creates a log record. It is called by Debug, Info, etc.
@@ -77,7 +72,7 @@ func (log *logger) log(level slog.Level, msg string, a ...slog.Attr) {
 		return
 	}
 	var pcs [1]uintptr
-	runtime.Callers(3, pcs[:]) // skip runtime.Callers, log, and our caller
+	runtime.Callers(3, pcs[:]) //nolint:mnd // skip runtime.Callers, log, and our caller
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	r.AddAttrs(a...)
 	_ = log.l.Handler().Handle(context.Background(), r)
@@ -128,4 +123,14 @@ func ParseLevel(s string) (l slog.Level, err error) {
 		err = fmt.Errorf("unknown log level: %q", s)
 	}
 	return
+}
+
+type mockTimeHandler struct {
+	clock internal.Clock
+	slog.Handler
+}
+
+func (h *mockTimeHandler) Handle(ctx context.Context, a slog.Record) error {
+	a.Time = h.clock.Now()
+	return h.Handler.Handle(ctx, a)
 }

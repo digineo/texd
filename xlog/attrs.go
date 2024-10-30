@@ -23,8 +23,15 @@ const ErrorKey = "error"
 // ErrorValue holds an error value.
 type ErrorValue struct{ error }
 
+var _ slog.LogValuer = (*ErrorValue)(nil)
+
 // Value extracts the error message.
 func (err ErrorValue) Value() slog.Value {
+	return slog.StringValue(err.Error())
+}
+
+// LogValue implements [slog.LogValuer].
+func (err ErrorValue) LogValue() slog.Value {
 	return slog.StringValue(err.Error())
 }
 

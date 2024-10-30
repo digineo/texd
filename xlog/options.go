@@ -3,9 +3,12 @@ package xlog
 import (
 	"io"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/digineo/texd/internal"
+	"github.com/mattn/go-isatty"
+	"gitlab.com/greyxor/slogor"
 )
 
 // An Option represents a functional configuration option. These are
@@ -13,17 +16,20 @@ import (
 type Option func(*options) error
 
 type options struct {
-	discard      bool
-	output       io.Writer
-	clock        internal.Clock
+	discard bool
+	output  io.Writer
+	color   bool
+	clock   internal.Clock
+	level   slog.Leveler
+	source  bool
+
 	buildHandler func(o *options) slog.Handler
-	handlerOpts  *slog.HandlerOptions
 }
 
 // Leveled sets the log level.
 func Leveled(l slog.Level) Option {
 	return func(o *options) error {
-		o.handlerOpts.Level = l
+		o.level = l
 		return nil
 	}
 }
@@ -36,7 +42,7 @@ func LeveledString(s string) Option {
 		if err != nil {
 			return err
 		}
-		o.handlerOpts.Level = l
+		o.level = l
 		return nil
 	}
 }
@@ -60,16 +66,17 @@ func MockClock(t time.Time) Option {
 // WithSource enables source code positions in log messages.
 func WithSource() Option {
 	return func(o *options) error {
-		o.handlerOpts.AddSource = true
+		o.source = true
 		return nil
 	}
 }
 
-// WithAttrReplacer configures an attribute replacer.
-// See (slog.HandlerOptions).ReplaceAtrr for details.
-func WithAttrReplacer(f func(groups []string, a slog.Attr) slog.Attr) Option {
+// Color enables colorful log output. If the output writer set by
+// [WriteTo] isn't a TTY, or messages are output [AsJSON], enabling
+// colors won't have an effect.
+func Color() Option {
 	return func(o *options) error {
-		o.handlerOpts.ReplaceAttr = f
+		o.color = true
 		return nil
 	}
 }
@@ -79,7 +86,10 @@ func WithAttrReplacer(f func(groups []string, a slog.Attr) slog.Attr) Option {
 func AsJSON() Option {
 	return func(o *options) error {
 		o.buildHandler = func(o *options) slog.Handler {
-			return slog.NewJSONHandler(o.output, o.handlerOpts)
+			return slog.NewJSONHandler(o.output, &slog.HandlerOptions{
+				AddSource: o.source,
+				Level:     o.level,
+			})
 		}
 		return nil
 	}
@@ -90,7 +100,15 @@ func AsJSON() Option {
 func AsText() Option {
 	return func(o *options) error {
 		o.buildHandler = func(o *options) slog.Handler {
-			return slog.NewTextHandler(o.output, o.handlerOpts)
+			opts := []slogor.OptionFn{
+				slogor.SetLevel(o.level.Level()),
+				slogor.SetTimeFormat("[15:04:05.000]"),
+				slogor.ShowSource(),
+			}
+			if f, isFile := o.output.(*os.File); !isFile || !isatty.IsTerminal(f.Fd()) {
+				opts = append(opts, slogor.DisableColor())
+			}
+			return slogor.NewHandler(o.output, opts...)
 		}
 		return nil
 	}

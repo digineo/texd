@@ -36,9 +36,8 @@ func TestLogging(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	assert.Equal(t, strings.Join([]string{
-		"time=2022-04-15T05:20:00.000Z",
-		"level=INFO",
-		`msg=""`,
+		"[05:20:00.000] INFO logging.go:68",
+		"",
 		"method=GET",
 		"status=200",
 		"bytes=0",
