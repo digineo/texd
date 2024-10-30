@@ -32,6 +32,7 @@ jobs:
       - uses: codecov/codecov-action@v4
         with:
           file: coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     name: Run linter
