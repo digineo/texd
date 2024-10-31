@@ -9,6 +9,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
+	github.com/mattn/go-isatty v0.0.20
 	github.com/moby/term v0.5.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/opencontainers/image-spec v1.1.0
@@ -17,7 +18,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
 	github.com/thediveo/enumflag v0.10.1
-	go.uber.org/zap v1.27.0
+	gitlab.com/greyxor/slogor v1.4.1
 )
 
 require (
@@ -54,7 +55,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.31.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.30.0 // indirect
 	go.opentelemetry.io/otel/trace v1.31.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
@@ -63,3 +63,5 @@ require (
 )
 
 replace github.com/spf13/afero => github.com/digineo/afero v1.11.1-0.20240128222722-ade8094005cb
+
+replace gitlab.com/greyxor/slogor => gitlab.com/dmke/slogor v1.4.2-0.20241030183918-8885575df1e5

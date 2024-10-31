@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 // The Adapter interface describes the protocol to interact with different
@@ -12,10 +12,10 @@ import (
 type Adapter interface {
 	// CopyFile copies a file with the given ID to the target path. It may
 	// return ErrUnknownReference if the ID is unknown.
-	CopyFile(log *zap.Logger, id Identifier, w io.Writer) error
+	CopyFile(log xlog.Logger, id Identifier, w io.Writer) error
 
 	// Store saves the content in the adapter backend.
-	Store(log *zap.Logger, r io.Reader) error
+	Store(log xlog.Logger, r io.Reader) error
 
 	// Exists checks whether the given reference identifier exists in this
 	// storage adapter.

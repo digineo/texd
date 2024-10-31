@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/digineo/texd/tex"
+	"github.com/digineo/texd/xlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestLocalExec_Run(t *testing.T) {
@@ -58,7 +58,7 @@ func TestLocalExec_Run(t *testing.T) {
 			// create local exec
 			exec := LocalExec(tt.doc).(*localExec) //nolint:forcetypeassert
 			exec.path = tt.path
-			err := exec.Run(context.Background(), zap.NewNop())
+			err := exec.Run(context.Background(), xlog.NewDiscard())
 
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)

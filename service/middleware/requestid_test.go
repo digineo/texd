@@ -1,13 +1,13 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestMiddleware(t *testing.T) {
@@ -39,7 +39,7 @@ func TestMiddleware(t *testing.T) {
 func TestRequestIDField(t *testing.T) {
 	t.Parallel()
 
-	var ctxIDField zap.Field
+	var ctxIDField slog.Attr
 	captureContextID := func(w http.ResponseWriter, r *http.Request) {
 		t.Helper()
 		ctxIDField = RequestIDField(r.Context())
@@ -55,13 +55,13 @@ func TestRequestIDField(t *testing.T) {
 	require.NotEmpty(t, headerId)
 
 	assert.Equal(t, "request-id", ctxIDField.Key)
-	assert.Equal(t, headerId, ctxIDField.String)
+	assert.Equal(t, headerId, ctxIDField.Value.String())
 }
 
 func TestRequestIDField_missing(t *testing.T) {
 	t.Parallel()
 
-	var ctxIDField zap.Field
+	var ctxIDField slog.Attr
 	captureContextID := func(w http.ResponseWriter, r *http.Request) {
 		t.Helper()
 		ctxIDField = RequestIDField(r.Context())
@@ -76,5 +76,5 @@ func TestRequestIDField_missing(t *testing.T) {
 	headerId := w.Header().Get(HeaderKey)
 	require.Empty(t, headerId)
 
-	assert.Equal(t, zap.Skip().Type, ctxIDField.Type)
+	assert.Equal(t, slog.Attr{}, ctxIDField)
 }

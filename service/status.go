@@ -7,7 +7,7 @@ import (
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type Status struct {
@@ -45,6 +45,6 @@ func (svc *service) HandleStatus(res http.ResponseWriter, req *http.Request) {
 	if err := json.NewEncoder(res).Encode(&status); err != nil {
 		svc.Logger().Error("failed to write response",
 			middleware.RequestIDField(req.Context()),
-			zap.Error(err))
+			xlog.Error(err))
 	}
 }

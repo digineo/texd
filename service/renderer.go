@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -18,7 +17,7 @@ import (
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 func (svc *service) Close() {
@@ -45,7 +44,7 @@ func (svc *service) shouldKeepJobs(err error) bool {
 	return svc.keepJobs == KeepJobsAlways || (svc.keepJobs == KeepJobsOnFailure && err != nil)
 }
 
-func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.Request) error { //nolint:funlen
+func (svc *service) render(log xlog.Logger, res http.ResponseWriter, req *http.Request) error { //nolint:funlen
 	params := req.URL.Query()
 	image, err := svc.validateImageParam(params.Get("image"))
 	if err != nil {
@@ -58,7 +57,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 
 	// Add a new job to the queue and bail if we're over capacity.
 	if err = svc.acquire(req.Context()); err != nil {
-		log.Error("failed enter queue", zap.Error(err))
+		log.Error("failed enter queue", xlog.Error(err))
 		metrics.ProcessedRejected.Inc()
 		return err
 	}
@@ -74,7 +73,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		}
 		observeRenderMetrics(doc)
 		if err := doc.Cleanup(); err != nil {
-			log.Error("cleanup failed", zap.Error(err))
+			log.Error("cleanup failed", xlog.Error(err))
 		}
 	}()
 
@@ -82,7 +81,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		if tex.IsReferenceError(err) {
 			log.Warn("unknown file reference")
 		} else {
-			log.Error("failed to add files", zap.Error(err))
+			log.Error("failed to add files", xlog.Error(err))
 		}
 		return err
 	}
@@ -92,8 +91,8 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	if input := params.Get("input"); input != "" {
 		if err = doc.SetMainInput(input); err != nil {
 			log.Error("invalid main input file",
-				zap.String("filename", input),
-				zap.Error(err))
+				xlog.String("filename", input),
+				xlog.Error(err))
 			return err
 		}
 	}
@@ -105,7 +104,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	}
 
 	if err := req.Context().Err(); err != nil {
-		log.Error("cancel render job, client is gone", zap.Error(err))
+		log.Error("cancel render job, client is gone", xlog.Error(err))
 		metrics.ProcessedAborted.Inc()
 		return err
 	}
@@ -116,7 +115,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		case "full", "condensed":
 			logReader, lerr := doc.GetLogs()
 			if lerr != nil {
-				log.Error("failed to get logs", zap.Error(lerr))
+				log.Error("failed to get logs", xlog.Error(lerr))
 				return err // not lerr, client gets error from executor.Run()
 			}
 			logfileResponse(log, res, format, logReader)
@@ -129,7 +128,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 
 	pdf, err := doc.GetResult()
 	if err != nil {
-		log.Error("failed to get result", zap.Error(err))
+		log.Error("failed to get result", xlog.Error(err))
 		return err
 	}
 	defer pdf.Close()
@@ -139,7 +138,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 	res.WriteHeader(http.StatusOK)
 	n, err := io.Copy(res, pdf)
 	if err != nil {
-		log.Error("failed to send results", zap.Error(err))
+		log.Error("failed to send results", xlog.Error(err))
 	}
 	metrics.OutputSize.Observe(float64(n))
 	return nil // header is already written
@@ -159,7 +158,7 @@ func (svc *service) validateImageParam(image string) (string, error) {
 			return image, nil
 		}
 	}
-	log.Printf("forbidden image: %q", image)
+	svc.log.Error("forbidden image", xlog.String("name", image))
 	return "", tex.InputError("forbidden image name", nil, tex.KV{"image": image})
 }
 
@@ -170,7 +169,7 @@ func (svc *service) validateEngineParam(name string) (engine tex.Engine, err err
 	}
 	engine, err = tex.ParseEngine(name)
 	if err != nil {
-		log.Printf("invalid engine: %v", err)
+		svc.log.Error("invalid engine", xlog.Error(err))
 		err = tex.InputError("unknown engine", err, nil)
 	}
 	return
@@ -180,7 +179,7 @@ type errMissingReference struct{ ref string }
 
 func (err *errMissingReference) Error() string { return err.ref }
 
-func (svc *service) addFiles(log *zap.Logger, doc tex.Document, req *http.Request) error {
+func (svc *service) addFiles(log xlog.Logger, doc tex.Document, req *http.Request) error {
 	ct := req.Header.Get("Content-Type")
 	mt, params, err := mime.ParseMediaType(ct)
 	if err != nil {
@@ -216,7 +215,7 @@ func (svc *service) addFiles(log *zap.Logger, doc tex.Document, req *http.Reques
 	return nil
 }
 
-func (svc *service) addFileFromPart(log *zap.Logger, doc tex.Document, part *multipart.Part, partNum int) error {
+func (svc *service) addFileFromPart(log xlog.Logger, doc tex.Document, part *multipart.Part, partNum int) error {
 	name := part.FormName()
 	if name == "" {
 		return tex.InputError("empty name", nil, tex.KV{"part": partNum})
@@ -276,13 +275,13 @@ func (svc *service) addFileFromPart(log *zap.Logger, doc tex.Document, part *mul
 	return nil
 }
 
-func logfileResponse(log *zap.Logger, res http.ResponseWriter, format string, logs io.ReadCloser) {
+func logfileResponse(log xlog.Logger, res http.ResponseWriter, format string, logs io.ReadCloser) {
 	res.Header().Set("Content-Type", mimeTypePlain)
 	res.WriteHeader(http.StatusUnprocessableEntity)
 
 	if format != "condensed" {
 		if _, err := io.Copy(res, logs); err != nil {
-			log.Error("failed to send logs", zap.Error(err))
+			log.Error("failed to send logs", xlog.Error(err))
 		}
 		return
 	}
@@ -293,13 +292,13 @@ func logfileResponse(log *zap.Logger, res http.ResponseWriter, format string, lo
 			// drop error indicator and add line break
 			line = append(bytes.TrimLeft(line, "! "), '\n')
 			if _, err := res.Write(line); err != nil {
-				log.Error("failed to send logs", zap.Error(err))
+				log.Error("failed to send logs", xlog.Error(err))
 				return
 			}
 		}
 	}
 	if err := s.Err(); err != nil {
-		log.Error("failed to read logs", zap.Error(err))
+		log.Error("failed to read logs", xlog.Error(err))
 	}
 }
 

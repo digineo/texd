@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/digineo/texd/xlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type failResponseWriter struct {
@@ -25,17 +24,12 @@ func (w *failResponseWriter) Header() http.Header    { return w.h }
 func (w *failResponseWriter) WriteHeader(code int)   { w.code = code }
 func (failResponseWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
-type mockClock struct{ t time.Time }
-
-func (m mockClock) Now() time.Time                       { return m.t }
-func (m mockClock) NewTicker(time.Duration) *time.Ticker { return nil }
-
 func TestHandleStatus(t *testing.T) {
 	svc := &service{
 		mode:           "local",
 		compileTimeout: 3 * time.Second,
 		jobs:           make(chan struct{}, 2),
-		log:            zap.NewNop(),
+		log:            xlog.NewDiscard(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/status", nil)
@@ -66,18 +60,19 @@ func TestHandleStatus(t *testing.T) {
 
 func TestHandleStatus_withFailIO(t *testing.T) {
 	var buf bytes.Buffer
-	core := zapcore.NewCore(
-		zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
-		zapcore.AddSync(&buf),
-		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool { return true }),
+	log, err := xlog.New(
+		xlog.AsText(),
+		xlog.WriteTo(&buf),
+		xlog.WithSource(),
+		xlog.MockClock(time.Unix(1650000000, 0).UTC()),
 	)
-	clock := &mockClock{time.Unix(1650000000, 0).UTC()}
+	require.NoError(t, err)
 
 	svc := &service{
 		mode:           "local",
 		compileTimeout: 3 * time.Second,
 		jobs:           make(chan struct{}, 2),
-		log:            zap.New(core, zap.WithClock(clock)),
+		log:            log,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/status", nil)
@@ -90,11 +85,9 @@ func TestHandleStatus_withFailIO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.code)
 	assert.Equal(t, mimeTypeJSON, rec.h.Get("Content-Type"))
-
 	assert.Equal(t, strings.Join([]string{
-		"2022-04-15T05:20:00.000Z",
-		"ERROR",
+		"[05:20:00.000] ERROR status.go:46",
 		"failed to write response",
-		`{"error": "io: read/write on closed pipe"}` + "\n",
-	}, "\t"), buf.String())
+		`error="io: read/write on closed pipe"`,
+	}, " ")+"\n", buf.String())
 }

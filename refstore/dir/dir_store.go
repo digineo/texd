@@ -32,8 +32,8 @@ import (
 
 	"github.com/digineo/texd/internal"
 	"github.com/digineo/texd/refstore"
+	"github.com/digineo/texd/xlog"
 	"github.com/spf13/afero"
-	"go.uber.org/zap"
 )
 
 var defaultFs afero.Fs = afero.OsFs{} // swapped in tests
@@ -109,7 +109,7 @@ func pathFromURL(config *url.URL) string {
 	return path
 }
 
-func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) error {
+func (d *dir) CopyFile(log xlog.Logger, id refstore.Identifier, dst io.Writer) error {
 	src, err := d.fs.Open(d.idPath(id))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -120,8 +120,8 @@ func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) e
 	defer src.Close()
 
 	log.Debug("copy file",
-		zap.String("refstore", "disk"),
-		zap.String("id", id.Raw()))
+		xlog.String("refstore", "disk"),
+		xlog.String("id", id.Raw()))
 	if _, err := io.Copy(dst, src); err != nil {
 		return fmt.Errorf("failed to copy storage object: %v", err)
 	}
@@ -129,7 +129,7 @@ func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) e
 	return nil
 }
 
-func (d *dir) Store(log *zap.Logger, r io.Reader) error {
+func (d *dir) Store(log xlog.Logger, r io.Reader) error {
 	tmp, err := afero.TempFile(d.fs, d.path, "tmp-*")
 	if err != nil {
 		return fmt.Errorf("failed to create storage object: %v", err)
@@ -145,8 +145,8 @@ func (d *dir) Store(log *zap.Logger, r io.Reader) error {
 	}
 
 	log.Debug("store file",
-		zap.String("refstore", "disk"),
-		zap.String("id", id.Raw()))
+		xlog.String("refstore", "disk"),
+		xlog.String("id", id.Raw()))
 
 	dst := d.idPath(id)
 	if err = d.fs.Rename(tmp.Name(), dst); err != nil {
