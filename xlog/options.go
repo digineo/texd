@@ -1,6 +1,7 @@
 package xlog
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -16,12 +17,11 @@ import (
 type Option func(*options) error
 
 type options struct {
-	discard bool
-	output  io.Writer
-	color   bool
-	clock   internal.Clock
-	level   slog.Leveler
-	source  bool
+	output io.Writer
+	color  bool
+	clock  internal.Clock
+	level  slog.Leveler
+	source bool
 
 	buildHandler func(o *options) slog.Handler
 }
@@ -47,9 +47,15 @@ func LeveledString(s string) Option {
 	}
 }
 
+var ErrNilWriter = errors.New("invalid writer: nil")
+
 // WriteTo sets the output.
 func WriteTo(w io.Writer) Option {
 	return func(o *options) error {
+		if w == nil {
+			return ErrNilWriter
+		}
+
 		o.output = w
 		return nil
 	}
@@ -103,7 +109,9 @@ func AsText() Option {
 			opts := []slogor.OptionFn{
 				slogor.SetLevel(o.level.Level()),
 				slogor.SetTimeFormat("[15:04:05.000]"),
-				slogor.ShowSource(),
+			}
+			if o.source {
+				opts = append(opts, slogor.ShowSource())
 			}
 			if f, isFile := o.output.(*os.File); !isFile || !isatty.IsTerminal(f.Fd()) {
 				opts = append(opts, slogor.DisableColor())
@@ -118,7 +126,10 @@ func AsText() Option {
 // constructor.
 func Discard() Option {
 	return func(o *options) error {
-		o.discard = true
+		o.buildHandler = func(o *options) slog.Handler {
+			// the discard logger doesn't have any options
+			return &discard{}
+		}
 		return nil
 	}
 }

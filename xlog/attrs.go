@@ -32,7 +32,7 @@ func (err ErrorValue) Value() slog.Value {
 
 // LogValue implements [slog.LogValuer].
 func (err ErrorValue) LogValue() slog.Value {
-	return slog.StringValue(err.Error())
+	return err.Value()
 }
 
 // Error constructs a first-class error log attribute.
@@ -40,5 +40,5 @@ func (err ErrorValue) LogValue() slog.Value {
 // Not to be confused with (xlog.Logger).Error() or (log/slog).Error(),
 // which produce an error-level log message.
 func Error(err error) slog.Attr {
-	return slog.Any(ErrorKey, ErrorValue{err})
+	return Any(ErrorKey, ErrorValue{err})
 }

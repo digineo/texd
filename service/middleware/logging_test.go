@@ -27,6 +27,7 @@ func TestLogging(t *testing.T) {
 	log, err := xlog.New(
 		xlog.AsText(),
 		xlog.WriteTo(&buf),
+		xlog.WithSource(),
 		xlog.MockClock(time.Unix(1650000000, 0).UTC()),
 	)
 	require.NoError(t, err)

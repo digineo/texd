@@ -49,13 +49,14 @@ func New(opt ...Option) (Logger, error) {
 		}
 	}
 
-	// the discard logger doesn't require any further setup
-	if opts.discard {
-		return &discard{}, nil
-	}
-
 	// setup mock time
 	h := opts.buildHandler(&opts)
+
+	// skip a lot of overhead for the discard logger
+	if d, ok := h.(*discard); ok {
+		return d, nil
+	}
+
 	if opts.clock != nil {
 		h = &mockTimeHandler{
 			clock:   opts.clock,
@@ -111,13 +112,13 @@ func (log *logger) With(a ...slog.Attr) Logger {
 // "error" and "fatal". Other input will result in err not being nil.
 func ParseLevel(s string) (l slog.Level, err error) {
 	switch strings.ToLower(s) {
-	case "debug":
+	case "dbg", "debug":
 		l = slog.LevelDebug
 	case "info", "": // make the zero value useful
 		l = slog.LevelInfo
 	case "warn", "warning":
 		l = slog.LevelWarn
-	case "error", "fatal":
+	case "err", "error", "fatal":
 		l = slog.LevelError
 	default:
 		err = fmt.Errorf("unknown log level: %q", s)
