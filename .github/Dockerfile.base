@@ -21,6 +21,7 @@ RUN <<-eot
 		chktex \
 		cm-super \
 		context \
+    curl \
 		dvidvi \
 		dvipng \
 		feynmf \
