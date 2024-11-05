@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 ARG GO_VERSION=1.26
 ARG IS_RELEASE=0
-FROM golang:${GO_VERSION}-trixie as builder
+FROM golang:${GO_VERSION}-trixie AS builder
 
 # This Dockerfile is used by GitHub Actions to build the
 # ghcr.io/digineo/texd:latest image whenever there is a commit pushed
@@ -15,7 +15,7 @@ FROM golang:${GO_VERSION}-trixie as builder
 WORKDIR /work
 ADD . /work/
 
-RUN <<-eot
+RUN <<-BASH
 	set -ex
 
 	if [ "${IS_RELEASE}" = "1" ]; then
@@ -26,7 +26,7 @@ RUN <<-eot
 	make build
 
 	./texd --version
-eot
+BASH
 
 FROM ghcr.io/digineo/texd:base
 

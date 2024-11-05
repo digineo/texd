@@ -8,10 +8,10 @@ FROM debian:trixie-slim
 #
 # For details, see workflows/base.yml.
 
-ENV LC_ALL C.UTF-8
-ENV DEBIAN_FRONTEND noninteractive
+ENV LC_ALL=C.UTF-8 \
+		DEBIAN_FRONTEND=noninteractive
 
-RUN <<-eot
+RUN <<-BASH
 	set -ex
 
   cat <<-'DPKG' >/etc/dpkg/dpkg.cfg.d/texd-minimal
@@ -29,6 +29,7 @@ DPKG
 		chktex \
 		cm-super \
 		context \
+		curl \
 		dvidvi \
 		dvipng \
 		feynmf \
@@ -74,4 +75,4 @@ DPKG
 
 	apt-get autoremove --yes
 	rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-eot
+BASH
