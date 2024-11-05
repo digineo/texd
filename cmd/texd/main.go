@@ -50,13 +50,15 @@ var opts = service.Options{
 }
 
 var (
-	engine      = tex.DefaultEngine.Name()
-	jobdir      = ""
-	pull        = false
-	logLevel    = zapcore.InfoLevel.String()
-	maxJobSize  = units.BytesSize(float64(opts.MaxJobSize))
-	storageDSN  = ""
-	showVersion = false
+	engine        = tex.DefaultEngine.Name()
+	shellEscape   = false
+	noShellEscape = false
+	jobdir        = ""
+	pull          = false
+	logLevel      = zapcore.InfoLevel.String()
+	maxJobSize    = units.BytesSize(float64(opts.MaxJobSize))
+	storageDSN    = ""
+	showVersion   = false
 
 	keepJobValues = map[int][]string{
 		service.KeepJobsNever:     {"never"},
@@ -105,6 +107,10 @@ func parseFlags(progname string, args ...string) []string {
 		"bind `address` for the HTTP API")
 	fs.StringVarP(&engine, "tex-engine", "X", engine,
 		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
+	fs.BoolVarP(&shellEscape, "shell-escape", "", shellEscape,
+		"enable shell escaping to arbitrary commands (mutually exclusive with --no-shell-escape)")
+	fs.BoolVarP(&noShellEscape, "no-shell-escape", "", noShellEscape,
+		"enable shell escaping to arbitrary commands (mutually exclusive with --shell-escape)")
 	fs.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
 		"maximum rendering time")
 	fs.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
@@ -165,6 +171,13 @@ func main() { //nolint:funlen
 		log.Fatal("error setting default TeX engine",
 			zap.String("flag", "--tex-engine"),
 			zap.Error(err))
+	}
+	if shellEscape && noShellEscape {
+		log.Fatal("flags --shell-escape and --no-shell-escape are mutually exclusive")
+	} else if shellEscape {
+		_ = tex.SetShellEscaping(tex.AllowedShellEscape)
+	} else if noShellEscape {
+		_ = tex.SetShellEscaping(tex.ForbiddenShellEscape)
 	}
 	if maxsz, err := units.FromHumanSize(maxJobSize); err != nil {
 		log.Fatal("error parsing maximum job size",
