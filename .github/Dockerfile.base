@@ -14,6 +14,14 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN <<-eot
 	set -ex
 
+  cat <<-'DPKG' >/etc/dpkg/dpkg.cfg.d/texd-minimal
+path-exclude=/usr/share/man/*
+path-exclude=/usr/share/doc/*
+path-exclude=/usr/share/texmf/doc/*
+path-exclude=/usr/share/icons/*
+path-exclude=/usr/lib/ruby/*/bundler/man/*
+DPKG
+
 	apt-get update --quiet
 	apt-get full-upgrade --yes
 	apt-get install --yes --no-install-recommends \
