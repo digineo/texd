@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -47,9 +46,9 @@ func (m *apiMock) ImageList(
 func (m *apiMock) ContainerInspect(
 	ctx context.Context,
 	id string,
-) (types.ContainerJSON, error) {
+) (container.InspectResponse, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(types.ContainerJSON), args.Error(1) //nolint:forcetypeassert
+	return args.Get(0).(container.InspectResponse), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ImagePull(
@@ -216,7 +215,7 @@ func (s *dockerClientSuite) prepareFs(inContainer bool, cidFileContent string) f
 	}
 }
 
-func parseMount(vol string) (m types.MountPoint) {
+func parseMount(vol string) (m container.MountPoint) {
 	parts := strings.SplitN(vol, ":", 3)
 	if len(parts) != 2 {
 		panic("unsupported")
@@ -277,8 +276,8 @@ func (s *dockerClientSuite) TestConfigureDinD_invalidCID() {
 	defer s.prepareFs(true, "id")()
 
 	s.cli.On("ContainerInspect", bg, "id").Return(
-		types.ContainerJSON{},
-		client.ErrorConnectionFailed("localhost"))
+		container.InspectResponse{},
+		errors.New("Cannot connect to the Docker daemon at localhost. Is the docker daemon running?"))
 
 	s.Require().EqualError(s.subject.configureDinD("/"),
 		"cannot determine texd container: Cannot connect to the Docker daemon at localhost. Is the docker daemon running?")
@@ -289,7 +288,7 @@ func (s *dockerClientSuite) TestConfigureDinD_missingWorkdirVolume() {
 	defer s.prepareFs(true, "id")()
 
 	s.cli.On("ContainerInspect", bg, "id").Return(
-		types.ContainerJSON{}, nil)
+		container.InspectResponse{}, nil)
 
 	s.Require().EqualError(s.subject.configureDinD("/texd"),
 		"missing Docker volume or bind mount for work directory")
@@ -300,8 +299,8 @@ func (s *dockerClientSuite) TestConfigureDinD_withBindMount() {
 	defer s.prepareFs(true, "our-id")()
 
 	s.cli.On("ContainerInspect", bg, "our-id").Return(
-		types.ContainerJSON{
-			Mounts: []types.MountPoint{
+		container.InspectResponse{
+			Mounts: []container.MountPoint{
 				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
 				parseMount("/srv/texd/work:/texd"),
 			},
@@ -320,8 +319,8 @@ func (s *dockerClientSuite) TestConfigureDinD_nonLocalDriver() {
 	defer s.prepareFs(true, "id")()
 
 	s.cli.On("ContainerInspect", bg, "id").Return(
-		types.ContainerJSON{
-			Mounts: []types.MountPoint{{
+		container.InspectResponse{
+			Mounts: []container.MountPoint{{
 				Type:        mount.TypeVolume,
 				Driver:      "div/0",
 				Destination: "/texd",
@@ -338,8 +337,8 @@ func (s *dockerClientSuite) TestConfigureDinD_withVolume() {
 	defer s.prepareFs(true, "our-id")()
 
 	s.cli.On("ContainerInspect", bg, "our-id").Return(
-		types.ContainerJSON{
-			Mounts: []types.MountPoint{
+		container.InspectResponse{
+			Mounts: []container.MountPoint{
 				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
 				parseMount("texd-work:/texd"),
 			},
@@ -361,8 +360,8 @@ func (s *dockerClientSuite) TestConfigureDinD_withoutCIDFile() {
 	s.Require().NoError(err)
 
 	s.cli.On("ContainerInspect", bg, hostname).Return(
-		types.ContainerJSON{
-			Mounts: []types.MountPoint{
+		container.InspectResponse{
+			Mounts: []container.MountPoint{
 				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
 				parseMount("/srv/texd/work:/texd"),
 			},
