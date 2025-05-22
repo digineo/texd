@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/moby/term v0.5.2
-	github.com/oklog/ulid/v2 v2.1.0
+	github.com/oklog/ulid/v2 v2.1.1
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/spf13/afero v1.11.0
