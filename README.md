@@ -181,6 +181,19 @@ $ docker run --rm -t ghcr.io/digineo/texd:latest -h
 
   This has no effect when no image tags are given to the command line.
 
+- `--shell-escape` and `--no-shell-escape` (Default: both omitted)
+
+  By default, (La)TeX allows some "trusted" binaries, e.g. `bibtex` and `kpsewhich`, to be executed
+  during the compilation process, since these are sometimes required for packages to work.
+
+  If you want to prohibit the execution of these programs, pass `--no-shell-escape` to `texd`. Note
+  that, as mentioned, some packages will stop working.
+
+  On the other hand, if you want to allow arbitrary command execution (!), for example with
+  `os.execute` in `lualatex`, you may pass `--shell-escape`. Be careful, here be dragons.
+
+  Also note that `--shell-escape` and `--no-shell-escape` are mutually exclusive.
+
 > Note: This option listing might be outdated. Run `texd --help` to get the up-to-date listing.
 
 ## HTTP API
