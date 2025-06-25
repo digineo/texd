@@ -73,7 +73,7 @@ func (s *retentionInitializerSuite) TestWithFiles() {
 		require.NoError(err)
 
 		n, err := io.Copy(w, df.r())
-		w.Close()
+		_ = w.Close()
 		require.NoError(err)
 		require.EqualValues(len([]byte(df)), n)
 
@@ -95,7 +95,7 @@ func (s *retentionInitializerSuite) TestWithNonFileRefFiles() {
 	path := "/not-a-fileref"
 	w, err := s.fs.OpenFile(path, os.O_CREATE, 0600)
 	require.NoError(err)
-	w.Close()
+	_ = w.Close()
 
 	errMsg := fmt.Sprintf("file %s does not look like a reference file: invalid identifier: unexpected input length", path)
 	require.EqualError(s.subject.initRetentionPolicy(), errMsg)
@@ -107,7 +107,7 @@ func (s *retentionInitializerSuite) TestIgnoresDirectories() {
 	require.NoError(s.fs.Mkdir("/dir", 0700))
 	w, err := s.fs.OpenFile("/dir/file", os.O_CREATE, 0600)
 	require.NoError(err)
-	w.Close()
+	_ = w.Close()
 
 	require.NoError(s.subject.initRetentionPolicy())
 	require.Empty(s.rp.primedWith)

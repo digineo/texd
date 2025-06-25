@@ -38,7 +38,7 @@ func (d *versionData) Development() bool {
 }
 
 func (d *versionData) PrintBanner(w io.Writer) {
-	fmt.Fprintf(w, banner, d.Version(), d.commit, d.commitat, d.buildat)
+	_, _ = fmt.Fprintf(w, banner, d.Version(), d.commit, d.commitat, d.buildat)
 }
 
 // Version returns a string describing the version. For release versions

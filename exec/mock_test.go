@@ -18,7 +18,7 @@ func TestMock(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, mock.ShouldFail)
 	assert.Equal(t, "content", mock.ResultContents)
-	assert.Equal(t, doc, mock.baseExec.doc)
+	assert.Equal(t, doc, mock.doc)
 }
 
 func TestMock_Run_extractError(t *testing.T) {

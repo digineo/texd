@@ -158,7 +158,7 @@ func (dc *DockerClient) pull(ctx context.Context, tag string, p *progress) error
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	_ = p.report(r)
 	return err

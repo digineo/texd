@@ -64,7 +64,7 @@ func TestBaseExec_extract(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedDir, dir)
 			assert.Equal(t, "latexmk", cmd[0])
-			assert.Equal(t, tc.mockDocument.main, cmd[len(cmd)-1])
+			assert.Equal(t, tc.main, cmd[len(cmd)-1])
 		} else {
 			require.EqualError(t, err, tc.expectedError)
 		}

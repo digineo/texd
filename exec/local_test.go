@@ -21,7 +21,7 @@ func TestLocalExec_Run(t *testing.T) {
 	// create tempdir
 	tmpDir, err := os.MkdirTemp("/tmp", "texd")
 	require.NoError(err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// fill tempdir
 	err = os.WriteFile(path.Join(tmpDir, "main.tex"), []byte("hello world"), 0o600)

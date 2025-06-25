@@ -221,7 +221,7 @@ func (suite *testSuite) TestService_refstore_storeFile() {
 
 	f, err := os.Open("../testdata/reference/preamble.sty")
 	require.NoError(err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	id, err := refstore.ReadIdentifier(f)
 	require.NoError(err)
@@ -263,7 +263,7 @@ func (suite *testSuite) TestService_refstore_useKnownRef() {
 	if err = refs.Store(zap.NewNop(), contents); err != nil {
 		panic(err)
 	}
-	contents.Close()
+	_ = contents.Close()
 
 	suite.runServiceTestCase(serviceTestCase{
 		files: addDirectory("../testdata/reference", map[string]refAction{
@@ -287,7 +287,7 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 	if testCase.files != nil {
 		require.NoError(testCase.files(w))
 	}
-	w.Close()
+	_ = w.Close()
 
 	uri := url.URL{
 		Scheme:   "http",
@@ -304,7 +304,7 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 
 	body, err := io.ReadAll(res.Body)
 	require.NoError(err)
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	assert.Equal(testCase.expectedMIME, res.Header.Get("Content-Type"))
 	if !assert.Equal(testCase.statusCode, res.StatusCode) {

@@ -117,7 +117,7 @@ func (d *dir) CopyFile(log *zap.Logger, id refstore.Identifier, dst io.Writer) e
 		}
 		return fmt.Errorf("unexpected error when accessing storage object: %v", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	log.Debug("copy file",
 		zap.String("refstore", "disk"),
@@ -134,7 +134,7 @@ func (d *dir) Store(log *zap.Logger, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("failed to create storage object: %v", err)
 	}
-	defer tmp.Close()
+	defer func() { _ = tmp.Close() }()
 
 	sz := sizeWriter{tmp, 0}
 	tee := io.TeeReader(r, &sz)

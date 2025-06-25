@@ -132,7 +132,7 @@ func (svc *service) render(log *zap.Logger, res http.ResponseWriter, req *http.R
 		log.Error("failed to get result", zap.Error(err))
 		return err
 	}
-	defer pdf.Close()
+	defer func() { _ = pdf.Close() }()
 
 	// Send PDF
 	res.Header().Set("Content-Type", mimeTypePDF)
@@ -227,7 +227,7 @@ func (svc *service) addFileFromPart(log *zap.Logger, doc tex.Document, part *mul
 		tex.ExtendError(err, tex.KV{"part": partNum})
 		return err // already InputError
 	}
-	defer target.Close()
+	defer func() { _ = target.Close() }()
 
 	if ct := part.Header.Get("Content-Type"); strings.HasPrefix(ct, mimeTypeTexd) {
 		extra := func() tex.KV { return tex.KV{"name": name, "content-type": ct, "part": partNum} }
