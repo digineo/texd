@@ -1,6 +1,8 @@
 package tex
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Engine struct {
 	name  string
@@ -8,12 +10,22 @@ type Engine struct {
 }
 
 func NewEngine(name string, latexmkFlags ...string) Engine {
-	return Engine{name, latexmkFlags}
+	return Engine{name: name, flags: latexmkFlags}
 }
 
-func (e Engine) Name() string    { return e.name }
-func (e Engine) String() string  { return e.name }
-func (e Engine) Flags() []string { return e.flags }
+func (e Engine) Name() string   { return e.name }
+func (e Engine) String() string { return e.name }
+func (e Engine) Flags() []string {
+	switch shellEscaping {
+	case RestrictedShellEscape:
+		return e.flags
+	case AllowedShellEscape:
+		return append([]string{"-shell-escape"}, e.flags...)
+	case ForbiddenShellEscape:
+		return append([]string{"-no-shell-escape"}, e.flags...)
+	}
+	panic("not reached")
+}
 
 var (
 	engines = []Engine{
@@ -62,9 +74,9 @@ var LatexmkDefaultFlags = []string{
 }
 
 // LatexmkCmd builds a command line for latexmk invocation.
-func (engine Engine) LatexmkCmd(main string) []string {
+func (e Engine) LatexmkCmd(main string) []string {
 	lenDefaults := len(LatexmkDefaultFlags)
-	flags := engine.Flags()
+	flags := e.Flags()
 	lenFlags := len(flags)
 
 	cmd := make([]string, 1+lenDefaults+lenFlags+1)
@@ -74,4 +86,43 @@ func (engine Engine) LatexmkCmd(main string) []string {
 	cmd[1+lenDefaults+lenFlags] = main
 
 	return cmd
+}
+
+type ShellEscape int
+
+const (
+	RestrictedShellEscape ShellEscape = iota // allows restricted command execution (e.g. bibtex)
+	AllowedShellEscape                       // allow arbitraty command execution
+	ForbiddenShellEscape                     // prohibit execution of any commands
+	maxShellEscape                           // must be last
+)
+
+type ErrUnexpectedShellEscape ShellEscape
+
+func (err ErrUnexpectedShellEscape) Error() string {
+	return fmt.Sprintf("unexpected shell escaping value: %d", int(err))
+}
+
+var shellEscaping = RestrictedShellEscape
+
+// SetShellEscaping globally configures which external programs the TeX compiler
+// is allowd to execute. By default, only a restricted set of external programs
+// are allowed, such as bibtex, kpsewhich, etc.
+//
+// When set to [ShellEscapeAllowed], the `-shell-escape` flag is passed to
+// `latexmk`. Note that this enables arbitrary command execution, and consider
+// the security implications.
+//
+// To disable any external command execution, use [ShellEscapeForbidden]. This
+// is equivalent to passing `-no-shell-escape` to `latexmk`.
+
+// Use [RestrictedShellEscape] to reset to the default value.
+//
+// Calling this with an unexpected value will return an error.
+func SetShellEscaping(value ShellEscape) error {
+	if value < 0 || value >= maxShellEscape {
+		return ErrUnexpectedShellEscape(value)
+	}
+	shellEscaping = value
+	return nil
 }
