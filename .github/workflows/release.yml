@@ -85,7 +85,7 @@ jobs:
             return { isRelease }
 
       - name: Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           file: ./.github/Dockerfile.release
           build-args: |
