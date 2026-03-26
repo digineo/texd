@@ -80,7 +80,7 @@ To run texd as Docker service, use this command:
 $ docker run --rm -t -p localhost:2201:2201 ghcr.io/digineo/texd:latest
 ```
 
-The image `ghcr.io/digineo/texd:latest` is based on Debian Bookworm with
+The image `ghcr.io/digineo/texd:latest` is based on Debian Trixie with
 some texlive packages installed from the Debian repositories (see this
 [`Dockerfile`](./.github/Dockerfile.base) for the current list). This also
 means that the contained TeX distribution is [TeXlive 2022][].
