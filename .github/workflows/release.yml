@@ -77,7 +77,7 @@ jobs:
             latest
 
       - name: Release meta
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         id: release-meta
         with:
           script: |
