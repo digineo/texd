@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Trigger release workflow
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           # need different token, RELEASE_TOKEN belongs to digineobot
           github-token: ${{ secrets.RELEASE_TOKEN }}
