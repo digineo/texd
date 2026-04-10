@@ -1,321 +1,77 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/signal"
-	"runtime"
-	"runtime/debug"
-	"sync"
-	"syscall"
-	"time"
 
 	"github.com/digineo/texd"
-	"github.com/digineo/texd/exec"
-	"github.com/digineo/texd/refstore"
-	_ "github.com/digineo/texd/refstore/dir"
-	_ "github.com/digineo/texd/refstore/memcached"
-	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
-	"github.com/digineo/texd/tex"
-	"github.com/docker/go-units"
-	"github.com/spf13/pflag"
-	"github.com/thediveo/enumflag"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
-	defaultQueueTimeout      = 10 * time.Second
-	defaultMaxJobSize        = 50 * units.MiB
-	defaultCompileTimeout    = time.Minute
-	defaultRetentionPoolSize = 100 * units.MiB
-
 	exitSuccess = 0
 	exitFlagErr = 2
-	exitTimeout = 10 * time.Second
 )
 
-var opts = service.Options{
-	Addr:           ":2201",
-	QueueLength:    runtime.GOMAXPROCS(0),
-	QueueTimeout:   defaultQueueTimeout,
-	MaxJobSize:     defaultMaxJobSize,
-	CompileTimeout: defaultCompileTimeout,
-	Mode:           "local",
-	Executor:       exec.LocalExec,
-	KeepJobs:       service.KeepJobsNever,
-}
-
-var (
-	engine        = tex.DefaultEngine.Name()
-	shellEscape   = false
-	noShellEscape = false
-	jobdir        = ""
-	pull          = false
-	logLevel      = zapcore.InfoLevel.String()
-	maxJobSize    = units.BytesSize(float64(opts.MaxJobSize))
-	storageDSN    = ""
-	showVersion   = false
-
-	keepJobValues = map[int][]string{
-		service.KeepJobsNever:     {"never"},
-		service.KeepJobsAlways:    {"always"},
-		service.KeepJobsOnFailure: {"on-failure"},
-	}
-
-	retPol       int
-	retPolValues = map[int][]string{
-		0: {"keep", "none"},
-		1: {"purge", "purge-on-start"},
-		2: {"access"},
-	}
-	retPolItems = 1000                                               // number of items in refstore
-	retPolSize  = units.BytesSize(float64(defaultRetentionPoolSize)) // max total file size
-)
-
-func retentionPolicy() (refstore.RetentionPolicy, error) {
-	switch retPol {
-	case 0:
-		return &refstore.KeepForever{}, nil
-	case 1:
-		return &refstore.PurgeOnStart{}, nil
-	case 2: //nolint:mnd
-		sz, err := units.FromHumanSize(retPolSize)
-		if err != nil {
-			return nil, err
+func main() {
+	exitCode, err := run(os.Args, os.Stdout, os.Stderr)
+	if err != nil {
+		// Don't print error for help/version requests
+		if !errors.Is(err, errHelpRequested) && !errors.Is(err, errVersionRequested) {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
-		pol, err := refstore.NewAccessList(retPolItems, int(sz))
-		if err != nil {
-			return nil, err
+	}
+	os.Exit(exitCode)
+}
+
+// run is the main application logic, separated from main() for testability.
+func run(args []string, stdout, stderr io.Writer) (int, error) {
+	// Print banner
+	texd.PrintBanner(stdout)
+
+	// Parse flags
+	cfg, err := parseFlags(args[0], args[1:], stderr)
+	if err != nil {
+		if errors.Is(err, errHelpRequested) {
+			return exitSuccess, errHelpRequested
 		}
-		return pol, nil
-	}
-	panic("not reached")
-}
-
-func parseFlags(progname string, args ...string) []string {
-	fs := pflag.NewFlagSet(progname, pflag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", progname)
-		fs.PrintDefaults()
+		if errors.Is(err, errVersionRequested) {
+			printVersion(stdout)
+			return exitSuccess, errVersionRequested
+		}
+		_, _ = fmt.Fprintf(stderr, "Error parsing flags:\n\t%v\n", err)
+		return exitFlagErr, err
 	}
 
-	fs.StringVarP(&opts.Addr, "listen-address", "b", opts.Addr,
-		"bind `address` for the HTTP API")
-	fs.StringVarP(&engine, "tex-engine", "X", engine,
-		fmt.Sprintf("`name` of default TeX engine, acceptable values are: %v", tex.SupportedEngines()))
-	fs.BoolVarP(&shellEscape, "shell-escape", "", shellEscape,
-		"enable shell escaping to arbitrary commands (mutually exclusive with --no-shell-escape)")
-	fs.BoolVarP(&noShellEscape, "no-shell-escape", "", noShellEscape,
-		"enable shell escaping to arbitrary commands (mutually exclusive with --shell-escape)")
-	fs.DurationVarP(&opts.CompileTimeout, "compile-timeout", "t", opts.CompileTimeout,
-		"maximum rendering time")
-	fs.IntVarP(&opts.QueueLength, "parallel-jobs", "P", opts.QueueLength,
-		"maximum `number` of parallel rendering jobs")
-	fs.StringVar(&maxJobSize, "max-job-size", maxJobSize,
-		"maximum size of job, a value <= 0 disables check")
-	fs.DurationVarP(&opts.QueueTimeout, "queue-wait", "w", opts.QueueTimeout,
-		"maximum wait time in full rendering queue")
-	fs.StringVarP(&jobdir, "job-directory", "D", jobdir,
-		"`path` to base directory to place temporary jobs into (path must exist and it must be writable; defaults to the OS's temp directory)")
-	fs.StringVar(&storageDSN, "reference-store", storageDSN,
-		fmt.Sprintf("enable reference store and configure with `DSN`, available adapters are: %v", refstore.AvailableAdapters()))
-	fs.BoolVar(&pull, "pull", pull, "always pull Docker images")
-	fs.StringVar(&logLevel, "log-level", logLevel,
-		"set logging verbosity, acceptable values are: [debug, info, warn, error, dpanic, panic, fatal]")
-	fs.BoolVarP(&showVersion, "version", "v", showVersion,
-		`print version information and exit`)
-
-	keepJobsFlag := enumflag.New(&opts.KeepJobs, "value", keepJobValues, enumflag.EnumCaseInsensitive)
-	fs.Var(keepJobsFlag, "keep-jobs", "keep jobs [never, on-failure, always]")
-
-	retPolFlag := enumflag.New(&retPol, "retention-policy", retPolValues, enumflag.EnumCaseInsensitive)
-	fs.VarP(retPolFlag, "retention-policy", "R", "how to handle reference store quota [keep, purge-on-start, access]")
-	fs.IntVar(&retPolItems, "rp-access-items", retPolItems,
-		"for retention-policy=access: maximum number of items to keep in access list, before evicting files")
-	fs.StringVar(&retPolSize, "rp-access-size", retPolSize,
-		"for retention-policy=access: maximum total size of items in access list, before evicting files")
-
-	switch err := fs.Parse(args); {
-	case errors.Is(err, pflag.ErrHelp):
-		// pflag already has called fs.Usage
-		os.Exit(exitSuccess)
-	case err != nil:
-		fmt.Fprintf(os.Stderr, "Error parsing flags:\n\t%v\n", err)
-		os.Exit(exitFlagErr)
+	// Setup logger
+	log, sync, err := setupLogger(cfg.logLevel, texd.Development())
+	if err != nil {
+		return exitFlagErr, fmt.Errorf("failed to setup logger: %w", err)
 	}
-
-	return fs.Args()
-}
-
-func main() { //nolint:funlen
-	texd.PrintBanner(os.Stdout)
-	images := parseFlags(os.Args[0], os.Args[1:]...)
-	log, sync := setupLogger()
 	defer sync()
 
-	if showVersion {
-		printVersion()
-		os.Exit(0)
+	// Configure TeX package
+	if err := configureTeX(cfg, log); err != nil {
+		return exitFlagErr, err
 	}
 
-	if err := tex.SetJobBaseDir(jobdir); err != nil {
-		log.Fatal("error setting job directory",
-			zap.String("flag", "--job-directory"),
-			zap.Error(err))
-	}
-	if err := tex.SetDefaultEngine(engine); err != nil {
-		log.Fatal("error setting default TeX engine",
-			zap.String("flag", "--tex-engine"),
-			zap.Error(err))
-	}
-	if shellEscape && noShellEscape {
-		log.Fatal("flags --shell-escape and --no-shell-escape are mutually exclusive")
-	} else if shellEscape {
-		_ = tex.SetShellEscaping(tex.AllowedShellEscape)
-	} else if noShellEscape {
-		_ = tex.SetShellEscaping(tex.ForbiddenShellEscape)
-	}
-	if maxsz, err := units.FromHumanSize(maxJobSize); err != nil {
-		log.Fatal("error parsing maximum job size",
-			zap.String("flag", "--max-job-size"),
-			zap.Error(err))
-	} else {
-		opts.MaxJobSize = maxsz
-	}
-	if storageDSN != "" {
-		rp, err := retentionPolicy()
-		if err != nil {
-			log.Fatal("error initializing retention policy",
-				zap.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
-				zap.Error(err))
-		}
-		if adapter, err := refstore.NewStore(storageDSN, rp); err != nil {
-			log.Fatal("error parsing reference store DSN",
-				zap.String("flag", "--reference-store"),
-				zap.Error(err))
-		} else {
-			opts.RefStore = adapter
-		}
-	} else {
-		opts.RefStore, _ = nop.New(nil, nil)
+	// Build service options
+	opts, err := buildServiceOptions(cfg, log)
+	if err != nil {
+		return exitFlagErr, err
 	}
 
-	if len(images) > 0 {
-		log.Info("using docker", zap.Strings("images", images))
-		cli, err := exec.NewDockerClient(log, tex.JobBaseDir())
-		if err != nil {
-			log.Fatal("error connecting to dockerd", zap.Error(err))
-		}
-
-		opts.Images, err = cli.SetImages(context.Background(), pull, images...)
-		opts.Mode = "container"
-		if err != nil {
-			log.Fatal("error setting images", zap.Error(err))
-		}
-		opts.Executor = cli.Executor
-	}
-
+	// Start service
 	stop, err := service.Start(opts, log)
 	if err != nil {
 		log.Fatal("failed to start service", zap.Error(err))
-	}
-	onExit(log, stop)
-}
-
-type stopFun func(context.Context) error
-
-func onExit(log *zap.Logger, stopper ...stopFun) {
-	exitCh := make(chan os.Signal, 2) //nolint:mnd // idiomatic
-	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-exitCh
-
-	log.Info("performing shutdown, press Ctrl+C to exit now",
-		zap.String("signal", sig.String()),
-		zap.Duration("graceful-wait-timeout", exitTimeout))
-
-	ctx, cancel := context.WithTimeout(context.Background(), exitTimeout)
-	defer cancel()
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(stopper))
-	for _, stop := range stopper {
-		go func(f stopFun) {
-			if err := f(ctx); err != nil {
-				log.Error("error while shutting down", zap.Error(err))
-			}
-			wg.Done()
-		}(stop)
+		return exitFlagErr, err
 	}
 
-	doneCh := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(doneCh)
-	}()
-
-	select {
-	case <-exitCh:
-		log.Warn("forcing exit")
-	case <-doneCh:
-		log.Info("shutdown complete")
-	case <-ctx.Done():
-		log.Warn("shutdown incomplete, exiting anyway")
-	}
-}
-
-func printVersion() {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return
-	}
-
-	fmt.Printf("\nGo: %s, %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
-
-	const l = "  %-10s %-50s %s\n"
-	fmt.Println("Dependencies:")
-	fmt.Printf(l, "main", info.Main.Path, texd.Version())
-	for _, i := range info.Deps {
-		if r := i.Replace; r == nil {
-			fmt.Printf(l, "dep", i.Path, i.Version)
-		} else {
-			fmt.Printf(l, "dep", r.Path, r.Version)
-			fmt.Printf(l, "  replaces", i.Path, i.Version)
-		}
-	}
-}
-
-func setupLogger() (*zap.Logger, func()) {
-	var cfg zap.Config
-	if texd.Development() {
-		cfg = zap.NewDevelopmentConfig()
-	} else {
-		cfg = zap.NewProductionConfig()
-	}
-
-	lvl, lvlErr := zapcore.ParseLevel(logLevel)
-	if lvlErr == nil {
-		cfg.Level = zap.NewAtomicLevelAt(lvl)
-	}
-
-	log, err := cfg.Build()
-	if err != nil {
-		// we don't have a logger yet, so logging the error
-		// proves to be complicated :)
-		panic(err)
-	}
-
-	if lvlErr != nil {
-		log.Error("error parsing log level",
-			zap.String("flag", "--log-level"),
-			zap.Error(lvlErr))
-	}
-
-	zap.ReplaceGlobals(log)
-	return log, func() {
-		_ = log.Sync()
-	}
+	// Wait for shutdown signal
+	handleGracefulShutdown(log, stop)
+	return exitSuccess, nil
 }
