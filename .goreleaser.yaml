@@ -26,7 +26,7 @@ builds:
       - arm64
 nfpms:
   - id: texd
-    builds: [texd]
+    ids: [texd]
     package_name: texd
     vendor: Digineo GmbH
     homepage: https://github.com/digineo/texd
@@ -73,4 +73,4 @@ nfpms:
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
