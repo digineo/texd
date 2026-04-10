@@ -27,12 +27,58 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Check for existing release
+        uses: actions/github-script@v9
+        id: check-release
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            // Get the latest reachable tag
+            const tagName = execSync('git describe --tags --abbrev=0', { encoding: 'utf-8' }).trim();
+            core.info(`Found tag: ${tagName}`);
+
+            // Check if a GitHub release exists for this tag
+            try {
+              const { data: release } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName
+              });
+
+              core.warning(`⚠️ Release ${tagName} already exists (ID: ${release.id}, created: ${release.created_at})`);
+              core.warning(`Release URL: ${release.html_url}`);
+              core.setOutput('skip_release', 'true');
+              core.setOutput('tag_name', tagName);
+            } catch (error) {
+              if (error.status === 404) {
+                core.info(`✓ No existing release found for ${tagName}. Proceeding with release.`);
+                core.setOutput('skip_release', 'false');
+                core.setOutput('tag_name', tagName);
+              } else {
+                core.warning(`Error checking for existing release: ${error.message}`);
+                core.warning('Allowing release to proceed due to API error.');
+                core.setOutput('skip_release', 'false');
+                core.setOutput('tag_name', tagName);
+              }
+            }
+
+      - name: Skip notice
+        if: steps.check-release.outputs.skip_release == 'true'
+        run: |
+          echo "::warning::Skipping goreleaser step because release ${{ steps.check-release.outputs.tag_name }} already exists"
+          echo "To create a new release, either:"
+          echo "  1. Create a new version tag, or"
+          echo "  2. Manually delete the existing release from GitHub"
+
       - name: Setup Go ${{ env.GO_VERSION }}
+        if: steps.check-release.outputs.skip_release != 'true'
         uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run goreleaser
+        if: steps.check-release.outputs.skip_release != 'true'
         uses: goreleaser/goreleaser-action@v7
         with:
           version: latest
