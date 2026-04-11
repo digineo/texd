@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}} - texd Documentation</title>
+  <link rel="stylesheet" href="/assets/bootstrap-5.3.8.min.css">
+  <style>
+    body {
+      height: 100vh;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="d-flex flex-nowrap h-100">
+    <nav class="d-flex flex-column flex-shrink-0 p-3 bg-light border-end" style="width: 280px">
+      <p class="lead">texd Documentation</p>
+      <a href="/" class="btn btn-sm btn-outline-primary mb-3 w-100">← Back to UI</a>
+
+      <ul class="nav nav-pills flex-column mb-auto">
+        {{range .NavSections}}
+        {{if .Title}}
+        <li class="nav-item mt-3 mb-1 px-3 border-bottom fw-light text-uppercase">
+          {{.Title}}
+        </li>
+        {{end}}
+        {{range .Items}}
+        <li class="nav-item">
+          <a class="nav-link{{if eq $.CurrentPage .Slug}} active{{end}}" href="{{.Href}}">{{.Title}}</a>
+        </li>
+        {{end}}
+        {{end}}
+      </ul>
+    </nav>
+
+    <main class="p-3">
+      {{.Content}}
+    </main>
+  </div>
+</body>
+
+</html>

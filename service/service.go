@@ -15,10 +15,10 @@ import (
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
+	"github.com/digineo/texd/xlog"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/digineo/texd/xlog"
 )
 
 const (
@@ -88,6 +88,7 @@ func (svc *service) routes() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleUI).Methods(http.MethodGet)
 	r.PathPrefix("/assets/").Handler(HandleAssets()).Methods(http.MethodGet)
+	r.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", HandleDocs())).Methods(http.MethodGet)
 
 	render := http.Handler(http.HandlerFunc(svc.HandleRender))
 	if max := svc.maxJobSize; max > 0 {

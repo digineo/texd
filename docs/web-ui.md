@@ -1,3 +1,9 @@
+---
+title: Web UI
+section: Features
+order: 2
+---
+
 # Simple Web UI
 
 You can try compiling TeX documents directly in your browser: Visit http://localhost:2201, and

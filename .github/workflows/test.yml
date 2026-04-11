@@ -47,6 +47,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Generate docs
+        run: make docs
+
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
         with:

@@ -43,6 +43,8 @@ $ curl -X POST \
 
 ## Documentation
 
+<!-- begin generated toc -->
+
 - [Getting Started](./docs/getting-started.md) - Installation and operation modes
 - **Configuration**
   - [CLI Options](./docs/cli-options.md) - Command-line options reference
@@ -56,6 +58,8 @@ $ curl -X POST \
 - **More**
   - [History & Future](./docs/history.md) - Project background and roadmap
   - [Contributing](./docs/contributing.md) - How to contribute
+
+<!-- end generated toc -->
 
 ## Contributing
 

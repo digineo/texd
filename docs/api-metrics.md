@@ -1,3 +1,9 @@
+---
+title: Metrics
+section: API Reference
+order: 3
+---
+
 # API Reference: Metrics
 
 For monitoring, texd provides a Prometheus endpoint at `/metrics`:

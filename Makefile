@@ -27,7 +27,11 @@ help: ## print a short help message
 
 ## building
 
-build: $(TARGET) ## build a development binary
+build: docs $(TARGET) ## build a development binary
+
+.PHONY: docs
+docs: ## generate HTML documentation from Markdown
+	go run ./cmd/build docs
 
 .PHONY: $(TARGET)
 $(TARGET):
@@ -36,7 +40,7 @@ $(TARGET):
 .PHONY: clean
 clean: ## cleanup build fragments
 	rm -rf tmp/ dist/ texd coverage.*
-
+	rm -rf docs/*.html service/docs
 
 ## development
 
@@ -77,7 +81,7 @@ run-dind-volume: tmp docker-latest ## build and runs texd in container mode, usi
 ## testing
 
 .PHONY: coverage.out
-coverage.out:
+coverage.out: docs
 	go test -race -covermode=atomic -coverprofile=$@ ./...
 
 coverage.html: coverage.out

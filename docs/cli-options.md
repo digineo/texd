@@ -1,3 +1,9 @@
+---
+title: CLI Options
+section: Configuration
+order: 1
+---
+
 # CLI Options
 
 Calling texd with options works in any mode; these commands are equivalent:

@@ -1,3 +1,9 @@
+---
+title: Getting Started
+section: ""
+order: 1
+---
+
 # Getting Started
 
 texd is a TeXaS (TeX as (a) service) solution, designed for your internal document generation, i.e.

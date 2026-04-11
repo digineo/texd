@@ -1,3 +1,10 @@
+---
+title: Render Endpoint
+navTitle: Render Endpoint
+section: API Reference
+order: 1
+---
+
 # API Reference: Render Endpoint
 
 ## Render a document

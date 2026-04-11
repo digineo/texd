@@ -1,3 +1,10 @@
+---
+title: Status Endpoint
+navTitle: Status Endpoint
+section: API Reference
+order: 2
+---
+
 # API Reference: Status and Configuration
 
 texd has a number of runtime configuration knobs and internal state variables, which may or may not

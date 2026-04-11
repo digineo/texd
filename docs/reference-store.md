@@ -1,3 +1,9 @@
+---
+title: Reference Store
+section: Features
+order: 1
+---
+
 # Reference Store
 
 texd has the ability to reuse previously sent material. This allows you to reduce the amount

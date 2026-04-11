@@ -3,3 +3,6 @@ dist/
 /tmp
 coverage.*
 .DS_Store
+
+# Generated documentation
+service/docs/
