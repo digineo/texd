@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/service"
@@ -72,11 +73,11 @@ func parseFlags(progname string, args []string, stderr io.Writer) (*config, erro
 // buildApp constructs the CLI application with all flags.
 func buildApp(progname string, stderr io.Writer, cfg *config, shellEscape, noShellEscape *bool, action cli.ActionFunc) *cli.Command { //nolint: funlen
 	const (
-		catServer   = "Server Options:"
-		catTeX      = "TeX Options:"
-		catDocker   = "Docker Options:"
-		catRefStore = "Reference Store Options:"
-		catMisc     = "Miscellaneous:"
+		catServer   = "I. Server Options:"
+		catTeX      = "II. TeX Options:"
+		catDocker   = "III. Docker Options:"
+		catRefStore = "IV. Reference Store Options:"
+		catMisc     = "V. Miscellaneous:"
 	)
 
 	return &cli.Command{
@@ -183,9 +184,10 @@ func buildApp(progname string, stderr io.Writer, cfg *config, shellEscape, noShe
 
 			// Reference Store Options
 			&cli.StringFlag{
-				Name:        "reference-store",
-				Value:       cfg.storageDSN,
-				Usage:       fmt.Sprintf("enable reference store and configure with `DSN`, available adapters are: %v", refstore.AvailableAdapters()),
+				Name:  "reference-store",
+				Value: cfg.storageDSN,
+				Usage: fmt.Sprintf("enable reference store and configure with `DSN`, available adapters are: [%s]",
+					strings.Join(refstore.AvailableAdapters(), ", ")),
 				Category:    catRefStore,
 				Destination: &cfg.storageDSN,
 			},
@@ -193,7 +195,7 @@ func buildApp(progname string, stderr io.Writer, cfg *config, shellEscape, noShe
 				Name:     "retention-policy",
 				Aliases:  []string{"R"},
 				Value:    retentionPolicyToString(cfg.retPolicy),
-				Usage:    "how to handle reference store quota [keep, purge-on-start, access]",
+				Usage:    "how to handle reference store `quota` [keep, purge-on-start, access]",
 				Category: catRefStore,
 				Action: func(ctx context.Context, cmd *cli.Command, value string) error {
 					parsed, err := parseRetentionPolicy(value)
