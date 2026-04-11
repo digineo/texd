@@ -19,16 +19,16 @@ import (
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/refstore/dir"
+	"github.com/digineo/texd/xlog"
 	"github.com/docker/go-units"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/zap"
 )
 
 type testSuite struct {
 	suite.Suite
 	svc    *service
 	stop   func(context.Context) error
-	logger *zap.Logger
+	logger xlog.Logger
 
 	mock mockParams
 }
@@ -48,7 +48,7 @@ func TestSuite(t *testing.T) {
 func (suite *testSuite) SetupSuite() {
 	require := suite.Require()
 
-	logger, err := zap.NewDevelopment()
+	logger, err := xlog.New(xlog.AsText(), xlog.WriteTo(os.Stderr))
 	suite.Require().NoError(err)
 	suite.logger = logger
 
@@ -260,7 +260,7 @@ func (suite *testSuite) TestService_refstore_useKnownRef() {
 	if err != nil {
 		panic(err)
 	}
-	if err = refs.Store(zap.NewNop(), contents); err != nil {
+	if err = refs.Store(xlog.NewDiscard(), contents); err != nil {
 		panic(err)
 	}
 	_ = contents.Close()
@@ -287,7 +287,7 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 	if testCase.files != nil {
 		require.NoError(testCase.files(w))
 	}
-	_ = w.Close()
+	require.NoError(w.Close())
 
 	uri := url.URL{
 		Scheme:   "http",
@@ -304,11 +304,11 @@ func (suite *testSuite) runServiceTestCase(testCase serviceTestCase) {
 
 	body, err := io.ReadAll(res.Body)
 	require.NoError(err)
-	_ = res.Body.Close()
+	require.NoError(res.Body.Close())
 
 	assert.Equal(testCase.expectedMIME, res.Header.Get("Content-Type"))
 	if !assert.Equal(testCase.statusCode, res.StatusCode) {
-		suite.logger.Error("unexpected result", zap.ByteString("body", body))
+		suite.logger.Error("unexpected result", xlog.String("body", string(body)))
 	}
 	assert.EqualValues(
 		strings.TrimSpace(testCase.expectedBody),

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/digineo/texd/tex"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 type MockExec struct {
@@ -38,13 +38,13 @@ func Mock(shouldFail bool, resultContents string) func(Document) Exec {
 	}
 }
 
-func (x *MockExec) Run(ctx context.Context, log *zap.Logger) error {
+func (x *MockExec) Run(ctx context.Context, log xlog.Logger) error {
 	_, args, err := x.extract()
 	if err != nil {
 		return tex.CompilationError("invalid document", err, nil)
 	}
 
-	log.Debug("simlate running latexmk", zap.Strings("args", args[1:]))
+	log.Debug("simlate running latexmk", xlog.Any("args", args[1:]))
 	main, _ := x.doc.MainInput() // would have failed in x.extract()
 	dot := strings.LastIndexByte(main, '.')
 	if dot < 0 {

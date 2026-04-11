@@ -8,7 +8,7 @@ import (
 
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/service"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 const (
@@ -67,7 +67,7 @@ func run(args []string, stdout, stderr io.Writer) (int, error) {
 	// Start service
 	stop, err := service.Start(opts, log)
 	if err != nil {
-		log.Fatal("failed to start service", zap.Error(err))
+		log.Fatal("failed to start service", xlog.Error(err))
 		return exitFlagErr, err
 	}
 

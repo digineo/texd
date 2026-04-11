@@ -9,22 +9,22 @@ import (
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 // configureTeX sets up the tex package globals based on config.
-func configureTeX(cfg *config, log *zap.Logger) error {
+func configureTeX(cfg *config, log xlog.Logger) error {
 	if err := tex.SetJobBaseDir(cfg.jobDir); err != nil {
 		log.Error("error setting job directory",
-			zap.String("flag", "--job-directory"),
-			zap.Error(err))
+			xlog.String("flag", "--job-directory"),
+			xlog.Error(err))
 		return err
 	}
 
 	if err := tex.SetDefaultEngine(cfg.engine); err != nil {
 		log.Error("error setting default TeX engine",
-			zap.String("flag", "--tex-engine"),
-			zap.Error(err))
+			xlog.String("flag", "--tex-engine"),
+			xlog.Error(err))
 		return err
 	}
 
@@ -41,7 +41,7 @@ func configureTeX(cfg *config, log *zap.Logger) error {
 }
 
 // buildServiceOptions creates service.Options from config.
-func buildServiceOptions(cfg *config, log *zap.Logger) (service.Options, error) {
+func buildServiceOptions(cfg *config, log xlog.Logger) (service.Options, error) {
 	opts := service.Options{
 		Addr:           cfg.addr,
 		QueueLength:    cfg.queueLength,
@@ -55,8 +55,8 @@ func buildServiceOptions(cfg *config, log *zap.Logger) (service.Options, error) 
 	// Parse and set max job size
 	if maxsz, err := units.FromHumanSize(cfg.maxJobSize); err != nil {
 		log.Error("error parsing maximum job size",
-			zap.String("flag", "--max-job-size"),
-			zap.Error(err))
+			xlog.String("flag", "--max-job-size"),
+			xlog.Error(err))
 		return opts, err
 	} else {
 		opts.MaxJobSize = maxsz
@@ -67,15 +67,15 @@ func buildServiceOptions(cfg *config, log *zap.Logger) (service.Options, error) 
 		rp, err := createRetentionPolicy(cfg.retPolicy, cfg.retPolItems, cfg.retPolSize)
 		if err != nil {
 			log.Error("error initializing retention policy",
-				zap.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
-				zap.Error(err))
+				xlog.String("flag", "--retention-policy, and/or --rp-access-items, --rp-access-size"),
+				xlog.Error(err))
 			return opts, err
 		}
 		adapter, err := refstore.NewStore(cfg.storageDSN, rp)
 		if err != nil {
 			log.Error("error parsing reference store DSN",
-				zap.String("flag", "--reference-store"),
-				zap.Error(err))
+				xlog.String("flag", "--reference-store"),
+				xlog.Error(err))
 			return opts, err
 		}
 		opts.RefStore = adapter
@@ -85,16 +85,16 @@ func buildServiceOptions(cfg *config, log *zap.Logger) (service.Options, error) 
 
 	// Setup Docker executor if images specified
 	if len(cfg.images) > 0 {
-		log.Info("using docker", zap.Strings("images", cfg.images))
+		log.Info("using docker", xlog.Any("images", cfg.images))
 		cli, err := exec.NewDockerClient(log, tex.JobBaseDir())
 		if err != nil {
-			log.Error("error connecting to dockerd", zap.Error(err))
+			log.Error("error connecting to dockerd", xlog.Error(err))
 			return opts, err
 		}
 
 		opts.Images, err = cli.SetImages(context.Background(), cfg.pull, cfg.images...)
 		if err != nil {
-			log.Error("error setting images", zap.Error(err))
+			log.Error("error setting images", xlog.Error(err))
 			return opts, err
 		}
 		opts.Mode = "container"
