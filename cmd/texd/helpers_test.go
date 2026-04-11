@@ -23,6 +23,7 @@ func TestSetupLogger(t *testing.T) {
 	tests := []struct {
 		level       string
 		development bool
+		expectError bool
 	}{
 		{
 			level:       "info",
@@ -43,12 +44,18 @@ func TestSetupLogger(t *testing.T) {
 		{
 			level:       "invalid",
 			development: false,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {
 			log, sync, err := setupLogger(tt.level, tt.development)
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
 
 			require.NoError(t, err)
 			require.NotNil(t, log)

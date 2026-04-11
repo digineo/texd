@@ -7,8 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/digineo/texd"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/digineo/texd/xlog"
 )
 
 // printVersion prints version information to the given writer.
@@ -37,32 +36,20 @@ func printVersion(w io.Writer) {
 }
 
 // setupLogger creates and configures a logger with the given level.
-func setupLogger(level string, development bool) (*zap.Logger, func(), error) {
-	var cfg zap.Config
+func setupLogger(level string, development bool) (xlog.Logger, func(), error) {
+	opts := []xlog.Option{
+		xlog.LeveledString(level),
+	}
 	if development {
-		cfg = zap.NewDevelopmentConfig()
+		opts = append(opts, xlog.AsText(), xlog.Color())
 	} else {
-		cfg = zap.NewProductionConfig()
+		opts = append(opts, xlog.AsJSON())
 	}
 
-	lvl, lvlErr := zapcore.ParseLevel(level)
-	if lvlErr == nil {
-		cfg.Level = zap.NewAtomicLevelAt(lvl)
-	}
-
-	log, err := cfg.Build()
+	log, err := xlog.New(opts...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if lvlErr != nil {
-		log.Error("error parsing log level",
-			zap.String("flag", "--log-level"),
-			zap.Error(lvlErr))
-	}
-
-	zap.ReplaceGlobals(log)
-	return log, func() {
-		_ = log.Sync()
-	}, nil
+	return log, func() {}, nil
 }

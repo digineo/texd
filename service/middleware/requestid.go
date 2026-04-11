@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/oklog/ulid/v2"
-	"go.uber.org/zap"
 )
 
 const HeaderKey = "X-Request-Id"
@@ -39,9 +39,9 @@ func GetRequestID(r *http.Request) (string, bool) {
 	return id, ok
 }
 
-func RequestIDField(ctx context.Context) zap.Field {
+func RequestIDField(ctx context.Context) slog.Attr {
 	if id, ok := ctx.Value(ContextKey).(string); ok {
-		return zap.String("request-id", id)
+		return slog.String("request-id", id)
 	}
-	return zap.Skip()
+	return slog.Attr{}
 }

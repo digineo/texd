@@ -7,7 +7,7 @@ import (
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	"github.com/docker/go-units"
-	"go.uber.org/zap/zapcore"
+	"log/slog"
 )
 
 const (
@@ -66,7 +66,7 @@ func defaultConfig() *config {
 		retPolicy:      0,
 		retPolItems:    defaultRetentionPoolItems,
 		retPolSize:     units.BytesSize(float64(defaultRetentionPoolSize)),
-		logLevel:       zapcore.InfoLevel.String(),
+		logLevel:       slog.LevelInfo.String(),
 		showVersion:    false,
 	}
 }

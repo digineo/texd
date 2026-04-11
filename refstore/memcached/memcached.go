@@ -31,7 +31,7 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/digineo/texd/internal"
 	"github.com/digineo/texd/refstore"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 // Defaults copied from github.com/bradfitz/gomemcache/memcache for clarity
@@ -134,7 +134,7 @@ func New(config *url.URL, _ refstore.RetentionPolicy) (refstore.Adapter, error) 
 	return adapter, nil
 }
 
-func (s *store) CopyFile(_ *zap.Logger, id refstore.Identifier, w io.Writer) error {
+func (s *store) CopyFile(_ xlog.Logger, id refstore.Identifier, w io.Writer) error {
 	val, err := s.get(s.key(id))
 	if err != nil {
 		if errors.Is(err, memcache.ErrCacheMiss) {
@@ -149,7 +149,7 @@ func (s *store) CopyFile(_ *zap.Logger, id refstore.Identifier, w io.Writer) err
 	return nil
 }
 
-func (s *store) Store(_ *zap.Logger, r io.Reader) error {
+func (s *store) Store(_ xlog.Logger, r io.Reader) error {
 	val, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("memcached: failed to read reference file: %w", err)

@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 const (
@@ -18,14 +18,14 @@ const (
 type stopFun func(context.Context) error
 
 // handleGracefulShutdown waits for termination signals and performs graceful shutdown.
-func handleGracefulShutdown(log *zap.Logger, stopper ...stopFun) {
+func handleGracefulShutdown(log xlog.Logger, stopper ...stopFun) {
 	exitCh := make(chan os.Signal, 2) //nolint:mnd // idiomatic
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-exitCh
 
 	log.Info("performing shutdown, press Ctrl+C to exit now",
-		zap.String("signal", sig.String()),
-		zap.Duration("graceful-wait-timeout", exitTimeout))
+		xlog.String("signal", sig.String()),
+		xlog.Duration("graceful-wait-timeout", exitTimeout))
 
 	ctx, cancel := context.WithTimeout(context.Background(), exitTimeout)
 	defer cancel()
@@ -35,7 +35,7 @@ func handleGracefulShutdown(log *zap.Logger, stopper ...stopFun) {
 	for _, stop := range stopper {
 		go func(f stopFun) {
 			if err := f(ctx); err != nil {
-				log.Error("error while shutting down", zap.Error(err))
+				log.Error("error while shutting down", xlog.Error(err))
 			}
 			wg.Done()
 		}(stop)

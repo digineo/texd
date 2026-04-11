@@ -6,7 +6,7 @@ import (
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap/zapcore"
+	"log/slog"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -25,6 +25,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "", cfg.storageDSN)
 	assert.Equal(t, 0, cfg.retPolicy)
 	assert.Equal(t, 1000, cfg.retPolItems)
-	assert.Equal(t, zapcore.InfoLevel.String(), cfg.logLevel)
+	assert.Equal(t, slog.LevelInfo.String(), cfg.logLevel)
 	assert.False(t, cfg.showVersion)
 }

@@ -9,6 +9,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
+	github.com/mattn/go-isatty v0.0.21
 	github.com/moby/term v0.5.2
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/opencontainers/image-spec v1.1.1
@@ -17,7 +18,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.8.0
-	go.uber.org/zap v1.27.1
+	gitlab.com/greyxor/slogor v1.6.9
 )
 
 require (
@@ -51,7 +52,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect

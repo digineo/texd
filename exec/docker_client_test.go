@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/zap"
+	"github.com/digineo/texd/xlog"
 )
 
 // bg is used as default context given to the apiMock stubs.
@@ -114,7 +114,7 @@ func (s *dockerClientSuite) SetupTest() {
 	s.cli = &apiMock{}
 	s.subject = &DockerClient{
 		cli: s.cli,
-		log: zap.NewNop(),
+		log: xlog.NewDiscard(),
 	}
 }
 
