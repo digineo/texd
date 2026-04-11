@@ -5,11 +5,13 @@ import (
 
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/refstore"
+	_ "github.com/digineo/texd/refstore/dir"
+	_ "github.com/digineo/texd/refstore/memcached"
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
-	"github.com/docker/go-units"
 	"github.com/digineo/texd/xlog"
+	"github.com/docker/go-units"
 )
 
 // configureTeX sets up the tex package globals based on config.
