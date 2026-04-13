@@ -6,3 +6,4 @@ coverage.*
 
 # Generated documentation
 service/docs/
+service/assets/chroma.css

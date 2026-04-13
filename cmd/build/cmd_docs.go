@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -13,13 +14,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2/formatters/html"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extAst "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
-	"github.com/yuin/goldmark/renderer/html"
+	goldmarkHtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 	"golang.org/x/text/cases"
@@ -29,6 +33,8 @@ import (
 
 //go:embed template.html
 var templateHTML string
+
+const chromaStyle = "catppuccin-latte"
 
 type pageData struct {
 	Title       string
@@ -115,8 +121,11 @@ func (t *cssClassTransformer) Transform(node *ast.Document, reader text.Reader, 
 	})
 }
 
-// customCodeBlockRenderer renders code blocks with Bootstrap classes
-type customCodeBlockRenderer struct{ html.Config }
+// customCodeBlockRenderer renders code blocks with Chroma syntax highlighting
+type customCodeBlockRenderer struct {
+	goldmarkHtml.Config
+	formatter *html.Formatter
+}
 
 func (r *customCodeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, r.renderCodeBlock)
@@ -124,34 +133,56 @@ func (r *customCodeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncReg
 }
 
 func (r *customCodeBlockRenderer) renderCodeBlock(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
-	if entering {
-		_, _ = w.WriteString(`<pre class="bg-light border rounded p-3 overflow-x-auto mw-100">`)
-		if n, ok := node.(*ast.FencedCodeBlock); ok {
-			language := n.Language(source)
-			if len(language) > 0 {
-				_, _ = w.WriteString(`<code class="language-`)
-				_, _ = w.Write(language)
-				_, _ = w.WriteString(`">`)
-			} else {
-				_, _ = w.WriteString("<code>")
-			}
-		} else {
-			_, _ = w.WriteString("<code>")
-		}
-
-		// Write the code content
-		l := node.Lines()
-		for i := range l.Len() {
-			line := l.At(i)
-			_, _ = w.Write(util.EscapeHTML(line.Value(source)))
-		}
-	} else {
-		_, _ = w.WriteString("</code></pre>\n")
+	if !entering {
+		return ast.WalkContinue, nil
 	}
+
+	// Get the code content
+	var buf bytes.Buffer
+	l := node.Lines()
+	for i := range l.Len() {
+		line := l.At(i)
+		buf.Write(line.Value(source))
+	}
+	codeContent := buf.String()
+
+	// Determine language
+	language := ""
+	if n, ok := node.(*ast.FencedCodeBlock); ok {
+		language = string(n.Language(source))
+	}
+
+	// If we have a language, try to use Chroma for syntax highlighting
+	if language != "" {
+		if language == "console" { // not supported by Chroma
+			language = "bash"
+		}
+		lexer := lexers.Get(language)
+		if lexer != nil {
+			// Use Chroma to highlight the code
+			iterator, err := lexer.Tokenise(nil, codeContent)
+			if err == nil {
+				var highlighted bytes.Buffer
+				// Use the HTML formatter with CSS classes
+				err = r.formatter.Format(&highlighted, styles.Get(chromaStyle), iterator)
+				if err == nil {
+					// Write the highlighted HTML
+					_, _ = w.Write(highlighted.Bytes())
+					return ast.WalkContinue, nil
+				}
+			}
+		}
+	}
+
+	// Fallback: render without syntax highlighting
+	_, _ = w.WriteString(`<pre class="bg-light border rounded p-3 overflow-x-auto mw-100"><code>`)
+	_, _ = w.Write(util.EscapeHTML([]byte(codeContent)))
+	_, _ = w.WriteString("</code></pre>\n")
+
 	return ast.WalkContinue, nil
 }
 
-type customBlockquoteRenderer struct{ html.Config }
+type customBlockquoteRenderer struct{ goldmarkHtml.Config }
 
 func (r *customBlockquoteRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindBlockquote, r.renderBlockquote)
@@ -173,7 +204,41 @@ type docMeta struct {
 	content  string
 }
 
+// generateChromaCSS generates and saves the Chroma CSS stylesheet
+func generateChromaCSS(assetsDir, filename string) error {
+	// Ensure assets directory exists
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create assets directory %q: %w", assetsDir, err)
+	}
+
+	// Generate CSS for the chromaStyle style
+	var buf bytes.Buffer
+	formatter := html.New(html.WithClasses(true))
+	style := styles.Get(chromaStyle)
+	if style == nil {
+		style = styles.Fallback
+	}
+
+	if err := formatter.WriteCSS(&buf, style); err != nil {
+		return fmt.Errorf("failed to generate CSS: %w", err)
+	}
+
+	// Write to file
+	cssPath := filepath.Join(assetsDir, filename)
+	if err := os.WriteFile(cssPath, buf.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("failed to write CSS file %q: %w", cssPath, err)
+	}
+
+	return nil
+}
+
 func generateDocs(input, output, readmePath string) error {
+	// Create Chroma HTML formatter with CSS classes
+	chromaFormatter := html.New(
+		html.WithClasses(true),
+		html.WithLineNumbers(false),
+	)
+
 	// Create goldmark converter
 	md := goldmark.New(
 		goldmark.WithExtensions(
@@ -190,7 +255,7 @@ func generateDocs(input, output, readmePath string) error {
 		),
 		goldmark.WithRendererOptions(
 			renderer.WithNodeRenderers(
-				util.Prioritized(&customCodeBlockRenderer{}, 100),
+				util.Prioritized(&customCodeBlockRenderer{formatter: chromaFormatter}, 100),
 				util.Prioritized(&customBlockquoteRenderer{}, 100),
 			),
 		),
@@ -215,6 +280,12 @@ func generateDocs(input, output, readmePath string) error {
 		}
 	} else if err != nil {
 		return fmt.Errorf("gendocs: cannot stat output directory %q: %w", output, err)
+	}
+
+	// Generate and save Chroma CSS stylesheet
+	assetsDir := "service/assets"
+	if err := generateChromaCSS(assetsDir, "chroma.css"); err != nil {
+		return fmt.Errorf("gendocs: failed to generate chroma CSS: %w", err)
 	}
 
 	// First pass: collect all frontmatter to build navigation
