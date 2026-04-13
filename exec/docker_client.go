@@ -6,21 +6,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/xlog"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/client"
+	"github.com/moby/moby/client/pkg/jsonmessage"
 	"github.com/moby/term"
 )
 
 // newClient is swapped in tests.
 var newClient = func() (client.APIClient, error) {
-	return client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	return client.New(client.FromEnv)
 }
 
 // DockerClient wraps a Docker client instance and provides methods to
@@ -116,12 +117,12 @@ func (dc *DockerClient) SetImages(ctx context.Context, alwaysPull bool, tags ...
 // have reports whether the given tag is present on the current Docker
 // host.
 func (dc *DockerClient) findImage(ctx context.Context, tag string) (summary image.Summary, err error) {
-	images, err := dc.cli.ImageList(ctx, image.ListOptions{})
+	result, err := dc.cli.ImageList(ctx, client.ImageListOptions{})
 	if err != nil {
 		return
 	}
 
-	for _, img := range images {
+	for _, img := range result.Items {
 		for _, t := range img.RepoTags {
 			if t == tag {
 				summary = img
@@ -154,7 +155,7 @@ func (p *progress) report(r io.Reader) error {
 // pull pulls the given image tag. Progress is reported to p, unless
 // p is nil.
 func (dc *DockerClient) pull(ctx context.Context, tag string, p *progress) error {
-	r, err := dc.cli.ImagePull(ctx, tag, image.PullOptions{})
+	r, err := dc.cli.ImagePull(ctx, tag, client.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
@@ -169,10 +170,8 @@ func (dc *DockerClient) findAllowedImageID(tag string) string {
 		return dc.images[0].ID
 	}
 	for _, img := range dc.images {
-		for _, t := range img.RepoTags {
-			if t == tag {
-				return img.ID
-			}
+		if slices.Contains(img.RepoTags, tag) {
+			return img.ID
 		}
 	}
 	return ""
@@ -203,7 +202,10 @@ func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cm
 		},
 	}
 
-	worker, err := dc.cli.ContainerCreate(ctx, containerCfg, hostCfg, nil, nil, "")
+	worker, err := dc.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:     containerCfg,
+		HostConfig: hostCfg,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -215,11 +217,13 @@ func (dc *DockerClient) prepareContainer(ctx context.Context, tag, wd string, cm
 }
 
 func (dc *DockerClient) waitForContainer(ctx context.Context, id string) (status int64, err error) {
-	statusCh, errCh := dc.cli.ContainerWait(ctx, id, container.WaitConditionNotRunning)
+	result := dc.cli.ContainerWait(ctx, id, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNotRunning,
+	})
 	select {
-	case err := <-errCh:
+	case err := <-result.Error:
 		return 0, err
-	case s := <-statusCh:
+	case s := <-result.Result:
 		return s.StatusCode, nil
 	}
 }
@@ -239,7 +243,7 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 	)
 	go func() {
 		defer close(logsDone)
-		out, err := dc.cli.ContainerLogs(ctx, id, container.LogsOptions{
+		out, err := dc.cli.ContainerLogs(ctx, id, client.ContainerLogsOptions{
 			ShowStderr: true,
 		})
 		if err != nil {
@@ -252,7 +256,7 @@ func (dc *DockerClient) Run(ctx context.Context, tag, wd string, cmd []string) (
 		}
 	}()
 
-	if err = dc.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+	if _, err = dc.cli.ContainerStart(ctx, id, client.ContainerStartOptions{}); err != nil {
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 
