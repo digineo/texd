@@ -3,7 +3,7 @@ package exec
 import (
 	"testing"
 
-	"github.com/docker/docker/api/types/mount"
+	"github.com/moby/moby/api/types/mount"
 	"github.com/stretchr/testify/suite"
 )
 
