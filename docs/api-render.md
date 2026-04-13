@@ -10,8 +10,8 @@ description: Compile TeX documents to PDF
 
 ## Render a document
 
-To create a PDF document from an input `.tex` file, send a HTTP POST to the `/render` endpoint.
-You may encode the payload as `multipart/form-data` or `application/x-www-form-encoded`, however
+To create a PDF document from an input `.tex` file, send an HTTP POST to the `/render` endpoint.
+You may encode the payload as `multipart/form-data` or `application/x-www-form-urlencoded`, however
 the latter is not recommended.
 
 Assuming, you have a `input.tex` in the current directory, you can issue the following command

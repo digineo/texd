@@ -31,7 +31,7 @@ To acquire a copy of the source code, run:
 $ git clone https://github.com/digineo/texd
 ```
 
-The `cd` into the `texd` directory. From there, you can use `make` to build, lint, and test
+Then `cd` into the `texd` directory. From there, you can use `make` to build, lint, and test
 the source code:
 
 ```console

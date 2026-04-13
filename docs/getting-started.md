@@ -44,7 +44,7 @@ $ texd
 
 ### Ephemeral Containers
 
-Here, you still download and run texd locally, but document rendering will happen in an short-lived
+Here, you still download and run texd locally, but document rendering will happen in a short-lived
 Docker container, using a specific Docker image (`registry.gitlab.com/islandoftex/images/texlive:latest`
 will do just fine, but you could easily build a smaller one using e.g. a Debian base image).
 
@@ -58,7 +58,7 @@ This will pull the specified image, if it doesn't exist yet. Note that you need 
 access to `/var/run/docker.sock`, in order to allow it to pull the image and create containers.
 
 You may provide multiple image names and switch on a per-request basis (see [HTTP API](api-render.md) below). In
-this case, the first image is used as default image:
+this case, the first image is used as the default image:
 
 ```console
 $ texd \
@@ -70,8 +70,8 @@ $ texd \
 ### CI Service
 
 This runs texd within a Docker container, and is primarily targeted for CI pipelines, but can be a
-viable alternative to the local mode. In fact, this mode is functionally equivalent to the
-*local mode*, with the one exception (texd being packaged and started in a container).
+viable alternative to local mode. In fact, this mode is functionally equivalent to
+*local mode*, with the one exception being texd is packaged and started in a container.
 
 To run texd as Docker service, use this command:
 
@@ -86,8 +86,8 @@ means that the contained TeX distribution is [TeXlive 2024][].
 
 > **Note:**
 >
-> If you want/need to run the container with non-root user ID (e.g. when
-> started with sth. like `docker run --user=$(id -un):$(id -gn)`), make
+> If you want/need to run the container with a non-root user ID (e.g. when
+> started with something like `docker run --user=$(id -un):$(id -gn)`), make
 > sure to also setup a `HOME` directory. Otherwise you'll likely encounter
 > FontConfig caching errors.
 >

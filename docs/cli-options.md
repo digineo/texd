@@ -11,7 +11,7 @@ Calling texd with options works in any mode; these commands are equivalent:
 
 ```console
 $ texd -h
-$ texd tregistry.gitlab.com/islandoftex/images/texlive:latestest -h
+$ texd registry.gitlab.com/islandoftex/images/texlive:latest -h
 $ docker run --rm -t ghcr.io/digineo/texd:latest -h
 ```
 
@@ -41,7 +41,7 @@ $ docker run --rm -t ghcr.io/digineo/texd:latest -h
 - `--compile-timeout=DURATION`, `-t DURATION` (Default: `1m`)
 
   Maximum duration for a document rendering process before it is killed by texd. The value must be
-  acceptable by Go's `ParseDuruation` function.
+  acceptable by Go's `ParseDuration` function.
 
 - `--parallel-jobs=NUM`, `-P NUM` (Default: number of cores)
 

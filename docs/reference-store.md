@@ -8,7 +8,7 @@ description: Cache and reuse assets
 # Reference Store
 
 texd has the ability to reuse previously sent material. This allows you to reduce the amount
-of data you need to transmit with each render request. Following a back-of-the-envelope calculation:
+of data you need to transmit with each render request. Here is a back-of-the-envelope calculation:
 
 - If you want to generate 1000 documents, each including a font with 400 kB in size, and a logo
   file with 100 kB in size, you will need to transmit 500 MB of the same two files in total.
@@ -61,7 +61,7 @@ Content-Type: application/json
 }
 ```
 
-In such a case, you can repeat you HTTP request, and change the `ref=use` to `ref=store` for
+In such a case, you can repeat your HTTP request, and change the `ref=use` to `ref=store` for
 matching documents:
 
 ```http
@@ -92,7 +92,7 @@ $ texd --reference-store=dir://./refs
 ```
 
 The actual syntax is `--reference-store=DSN`, where storage adapters are identified through and
-configured with a DSN (*data source name*, a URL). Currently there are only handful implementations:
+configured with a DSN (*data source name*, a URL). Currently there are only a handful of implementations:
 
 1. The `dir://` adapter ([docs][docs-dir]), which stores reference files on disk in a specified
    directory. Coincidentally, this adapter also provides an in-memory adapter (`memory://`),
@@ -101,7 +101,7 @@ configured with a DSN (*data source name*, a URL). Currently there are only hand
 2. The `memcached://` adapter ([docs][docs-memcached]), which stores, you may have guessed it,
    reference files in a [Memcached][memcached] instance or cluster.
 
-3. The `nop://` adapter ([docs][docs-nop]), which―for the sake of completeness sake―implements a
+3. The `nop://` adapter ([docs][docs-nop]), which―for completeness―implements a
    no-op store (i.e. attempts to store reference file into is, or load files from it fail silently).
    This adapter is used as fallback if you don't configure any other adapter.
 
@@ -130,7 +130,7 @@ To select a specific retention policy, use the `--retention-policy` CLI flag:
 $ texd --reference-store=dir://./refs --retention-policy=purge
 ```
 
-To configure the access list (`--retention-policy=access`), you can adopt the quota to your needs:
+To configure the access list (`--retention-policy=access`), you can adjust the quota to your needs:
 
 ```
 $ texd --reference-store=dir://./refs \
@@ -147,4 +147,4 @@ Notes:
 - To disable either limit, set the value to 0 (e.g. `--rp-access-items=0`).
 - It is an error to disable both limits (in this case just use `--retention-policy=keep`).
 - Currently, only the `dir://` (and `memory://`) adapter support a retention policy; the
- `memcached://` adapter delegates this responsibility to the Memcached server.
+  `memcached://` adapter delegates this responsibility to the Memcached server.

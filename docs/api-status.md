@@ -9,7 +9,7 @@ description: Server status and configuration
 # API Reference: Status and Configuration
 
 texd has a number of runtime configuration knobs and internal state variables, which may or may not
-of interest for API consumers. To receive a current snapshot, query `/status`:
+be of interest for API consumers. To receive a current snapshot, query `/status`:
 
 ```console
 $ curl -i http://localhost:2201/status
