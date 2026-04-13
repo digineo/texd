@@ -3,6 +3,7 @@ title: History & Future
 navTitle: History & Future
 section: More
 order: 1
+description: Project background and roadmap
 ---
 
 # History

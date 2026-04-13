@@ -2,6 +2,7 @@
 title: Reference Store
 section: Features
 order: 1
+description: Cache and reuse assets
 ---
 
 # Reference Store

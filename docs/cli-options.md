@@ -2,6 +2,7 @@
 title: CLI Options
 section: Configuration
 order: 1
+description: Command-line options reference
 ---
 
 # CLI Options

@@ -3,6 +3,7 @@ title: Status Endpoint
 navTitle: Status Endpoint
 section: API Reference
 order: 2
+description: Server status and configuration
 ---
 
 # API Reference: Status and Configuration

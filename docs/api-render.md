@@ -3,6 +3,7 @@ title: Render Endpoint
 navTitle: Render Endpoint
 section: API Reference
 order: 1
+description: Compile TeX documents to PDF
 ---
 
 # API Reference: Render Endpoint

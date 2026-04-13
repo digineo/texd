@@ -2,6 +2,7 @@
 title: Metrics
 section: API Reference
 order: 3
+description: Prometheus metrics
 ---
 
 # API Reference: Metrics

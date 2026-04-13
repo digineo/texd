@@ -39,10 +39,11 @@ type pageData struct {
 
 // frontmatter represents YAML frontmatter in markdown files
 type frontmatter struct {
-	Title    string `yaml:"title"`    // Page title
-	NavTitle string `yaml:"navTitle"` // Title shown in navigation (optional, defaults to Title)
-	Section  string `yaml:"section"`  // Section name (e.g., "Configuration", "API Reference")
-	Order    int    `yaml:"order"`    // Order within section
+	Title       string `yaml:"title"`       // Page title
+	NavTitle    string `yaml:"navTitle"`    // Title shown in navigation (optional, defaults to Title)
+	Section     string `yaml:"section"`     // Section name (e.g., "Configuration", "API Reference")
+	Order       int    `yaml:"order"`       // Order within section
+	Description string `yaml:"description"` // Short description for README TOC
 }
 
 // navSection represents a navigation section with items
@@ -53,9 +54,10 @@ type navSection struct {
 
 // navItem represents a single navigation link
 type navItem struct {
-	Title string
-	Href  string
-	Slug  string
+	Title       string
+	Href        string
+	Slug        string
+	Description string // Optional description for README TOC
 }
 
 var linkRewriter = regexp.MustCompile(`\[([^\]]*)\]\(([^)]+)\.md(#[^)]*)?\)`)
@@ -171,7 +173,7 @@ type docMeta struct {
 	content  string
 }
 
-func generateDocs(input, output string) error {
+func generateDocs(input, output, readmePath string) error {
 	// Create goldmark converter
 	md := goldmark.New(
 		goldmark.WithExtensions(
@@ -223,6 +225,11 @@ func generateDocs(input, output string) error {
 			continue
 		}
 
+		// Skip README.md files - they're for GitHub, not HTML generation
+		if strings.EqualFold(entry.Name(), "README.md") {
+			continue
+		}
+
 		inputPath := filepath.Join(input, entry.Name())
 		content, err := os.ReadFile(inputPath)
 		if err != nil {
@@ -266,6 +273,26 @@ func generateDocs(input, output string) error {
 	if generatedCount == 0 {
 		return fmt.Errorf("gendocs: no markdown files with frontmatter found in %s", input)
 	}
+
+	// Update project README TOC if path provided (with ./docs/ prefix)
+	if readmePath != "" {
+		logf("updating TOC in %s", readmePath)
+		toc := generateTOC(navSections, "./docs/")
+		if err := updateReadmeTOC(readmePath, toc); err != nil {
+			return fmt.Errorf("gendocs: failed to update README TOC: %w", err)
+		}
+	}
+
+	// Update docs/README.md TOC (with ./ prefix for relative links)
+	docsReadmePath := filepath.Join(input, "README.md")
+	if _, err := os.Stat(docsReadmePath); err == nil {
+		logf("updating TOC in %s", docsReadmePath)
+		toc := generateTOC(navSections, "./")
+		if err := updateReadmeTOC(docsReadmePath, toc); err != nil {
+			return fmt.Errorf("gendocs: failed to update docs/README TOC: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -306,9 +333,10 @@ func buildNavigation(docs []docMeta) []navSection {
 			}
 
 			items = append(items, navItem{
-				Title: navTitle,
-				Href:  "/docs/" + slug + ".html",
-				Slug:  slug,
+				Title:       navTitle,
+				Href:        "/docs/" + slug + ".html",
+				Slug:        slug,
+				Description: doc.fm.Description,
 			})
 		}
 
@@ -320,7 +348,8 @@ func buildNavigation(docs []docMeta) []navSection {
 
 	// Add any remaining sections not in the predefined order
 	for sectionName, docs := range sections {
-		if slices.Contains(sectionOrder, sectionName) {
+		found := slices.Contains(sectionOrder, sectionName)
+		if found {
 			continue
 		}
 
@@ -333,9 +362,10 @@ func buildNavigation(docs []docMeta) []navSection {
 			}
 
 			items = append(items, navItem{
-				Title: navTitle,
-				Href:  "/docs/" + slug + ".html",
-				Slug:  slug,
+				Title:       navTitle,
+				Href:        "/docs/" + slug + ".html",
+				Slug:        slug,
+				Description: doc.fm.Description,
 			})
 		}
 
@@ -404,4 +434,105 @@ func extractTitle(content string) string {
 		}
 	}
 	return ""
+}
+
+// generateTOC creates a markdown table of contents from navigation structure
+// pathPrefix is prepended to each link (e.g., "./docs/" for root README, "./" for docs/README)
+func generateTOC(navSections []navSection, pathPrefix string) string {
+	var buf strings.Builder
+
+	for _, section := range navSections {
+		// Skip empty sections with no items
+		if len(section.Items) == 0 {
+			continue
+		}
+
+		// If section has a title, render it as a nested list with bold header
+		if section.Title != "" {
+			buf.WriteString("- **")
+			buf.WriteString(section.Title)
+			buf.WriteString("**\n")
+			for _, item := range section.Items {
+				// Convert HTML href to markdown link
+				mdPath := strings.TrimPrefix(item.Href, "/docs/")
+				mdPath = strings.TrimSuffix(mdPath, ".html") + ".md"
+				mdPath = pathPrefix + mdPath
+
+				buf.WriteString("  - [")
+				buf.WriteString(item.Title)
+				buf.WriteString("](")
+				buf.WriteString(mdPath)
+				buf.WriteString(")")
+
+				// Add description if available
+				if item.Description != "" {
+					buf.WriteString(" - ")
+					buf.WriteString(item.Description)
+				}
+				buf.WriteString("\n")
+			}
+		} else {
+			// Items without a section header (like "Getting Started")
+			for _, item := range section.Items {
+				mdPath := strings.TrimPrefix(item.Href, "/docs/")
+				mdPath = strings.TrimSuffix(mdPath, ".html") + ".md"
+				mdPath = pathPrefix + mdPath
+
+				buf.WriteString("- [")
+				buf.WriteString(item.Title)
+				buf.WriteString("](")
+				buf.WriteString(mdPath)
+				buf.WriteString(")")
+
+				// Add description if available
+				if item.Description != "" {
+					buf.WriteString(" - ")
+					buf.WriteString(item.Description)
+				}
+				buf.WriteString("\n")
+			}
+		}
+	}
+
+	return buf.String()
+}
+
+// updateReadmeTOC updates the TOC section in README.md
+func updateReadmeTOC(readmePath string, toc string) error {
+	content, err := os.ReadFile(readmePath)
+	if err != nil {
+		return fmt.Errorf("failed to read README: %w", err)
+	}
+
+	contentStr := string(content)
+
+	// Find the TOC markers
+	beginMarker := "<!-- begin generated toc -->"
+	endMarker := "<!-- end generated toc -->"
+
+	beginIdx := strings.Index(contentStr, beginMarker)
+	endIdx := strings.Index(contentStr, endMarker)
+
+	if beginIdx == -1 || endIdx == -1 {
+		return fmt.Errorf("TOC markers not found in README.md")
+	}
+
+	if beginIdx >= endIdx {
+		return fmt.Errorf("invalid TOC markers in README.md")
+	}
+
+	// Build new content
+	var newContent strings.Builder
+	newContent.WriteString(contentStr[:beginIdx+len(beginMarker)])
+	newContent.WriteString("\n\n")
+	newContent.WriteString(toc)
+	newContent.WriteString("\n")
+	newContent.WriteString(contentStr[endIdx:])
+
+	// Write back to file
+	if err := os.WriteFile(readmePath, []byte(newContent.String()), 0o644); err != nil {
+		return fmt.Errorf("failed to write README: %w", err)
+	}
+
+	return nil
 }

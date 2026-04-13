@@ -76,12 +76,19 @@ func main() {
 						Usage:   "Output directory `path` to write *.html files to",
 						Value:   "service/docs",
 					},
+					&cli.StringFlag{
+						Name:    "readme",
+						Aliases: []string{"r"},
+						Usage:   "Path to README.md file to update TOC (empty to skip)",
+						Value:   "README.md",
+					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					input := cmd.String("input")
 					output := cmd.String("output")
+					readme := cmd.String("readme")
 
-					return generateDocs(input, output)
+					return generateDocs(input, output, readme)
 				},
 			},
 		},

@@ -2,6 +2,7 @@
 title: Web UI
 section: Features
 order: 2
+description: Browser-based document compiler
 ---
 
 # Simple Web UI

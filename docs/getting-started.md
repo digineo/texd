@@ -2,6 +2,7 @@
 title: Getting Started
 section: ""
 order: 1
+description: Installation and operation modes
 ---
 
 # Getting Started
