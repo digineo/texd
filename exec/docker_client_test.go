@@ -6,26 +6,43 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"path"
 	"strings"
 	"syscall"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/digineo/texd/xlog"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/jsonstream"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/client"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"github.com/digineo/texd/xlog"
 )
 
 // bg is used as default context given to the apiMock stubs.
 var bg = context.Background()
+
+type mockImagePullResponse struct {
+	io.ReadCloser
+}
+
+func (m *mockImagePullResponse) JSONMessages(ctx context.Context) iter.Seq2[jsonstream.Message, error] {
+	// Return a no-op iterator
+	return func(yield func(jsonstream.Message, error) bool) {}
+}
+
+func (m *mockImagePullResponse) Wait(ctx context.Context) error {
+	return nil
+}
+
+type mockContainerLogsResult struct {
+	io.ReadCloser
+}
 
 type apiMock struct {
 	mock.Mock
@@ -35,68 +52,65 @@ type apiMock struct {
 
 func (m *apiMock) ImageList(
 	ctx context.Context,
-	options image.ListOptions,
-) ([]image.Summary, error) {
+	options client.ImageListOptions,
+) (client.ImageListResult, error) {
 	args := m.Called(ctx, options)
 	// channel trickery to allow TestSetImages create different return values
 	// (and work around a limitation of the mock framework)
-	return <-args.Get(0).(chan []image.Summary), <-args.Get(1).(chan error) //nolint:forcetypeassert
+	return <-args.Get(0).(chan client.ImageListResult), <-args.Get(1).(chan error) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerInspect(
 	ctx context.Context,
 	id string,
-) (container.InspectResponse, error) {
-	args := m.Called(ctx, id)
-	return args.Get(0).(container.InspectResponse), args.Error(1) //nolint:forcetypeassert
+	options client.ContainerInspectOptions,
+) (client.ContainerInspectResult, error) {
+	args := m.Called(ctx, id, options)
+	return args.Get(0).(client.ContainerInspectResult), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ImagePull(
 	ctx context.Context,
-	ref string,
-	options image.PullOptions,
-) (io.ReadCloser, error) {
-	args := m.Called(ctx, ref, options)
-	return args.Get(0).(io.ReadCloser), args.Error(1) //nolint:forcetypeassert
+	refStr string,
+	options client.ImagePullOptions,
+) (client.ImagePullResponse, error) {
+	args := m.Called(ctx, refStr, options)
+	return args.Get(0).(client.ImagePullResponse), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerLogs(
 	ctx context.Context,
 	container string,
-	options container.LogsOptions,
-) (io.ReadCloser, error) {
+	options client.ContainerLogsOptions,
+) (client.ContainerLogsResult, error) {
 	args := m.Called(ctx, container, options)
-	return args.Get(0).(io.ReadCloser), args.Error(1) //nolint:forcetypeassert
+	return args.Get(0).(client.ContainerLogsResult), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerCreate(
 	ctx context.Context,
-	config *container.Config,
-	host *container.HostConfig,
-	networking *network.NetworkingConfig,
-	platform *specs.Platform,
-	containerName string,
-) (container.CreateResponse, error) {
-	args := m.Called(ctx, config, host, networking, platform, containerName)
-	return args.Get(0).(container.CreateResponse), args.Error(1) //nolint:forcetypeassert
+	options client.ContainerCreateOptions,
+) (client.ContainerCreateResult, error) {
+	args := m.Called(ctx, options)
+	return args.Get(0).(client.ContainerCreateResult), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerStart(
 	ctx context.Context,
 	container string,
-	options container.StartOptions,
-) error {
+	options client.ContainerStartOptions,
+) (client.ContainerStartResult, error) {
 	args := m.Called(ctx, container, options)
-	return args.Error(0)
+	return args.Get(0).(client.ContainerStartResult), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *apiMock) ContainerWait(
 	ctx context.Context,
 	containerID string,
-	condition container.WaitCondition,
-) (<-chan container.WaitResponse, <-chan error) {
-	args := m.Called(ctx, containerID, condition)
-	return args.Get(0).(chan container.WaitResponse), args.Get(1).(chan error) //nolint:forcetypeassert
+	options client.ContainerWaitOptions,
+) client.ContainerWaitResult {
+	args := m.Called(ctx, containerID, options)
+	return args.Get(0).(client.ContainerWaitResult) //nolint:forcetypeassert
 }
 
 type dockerClientSuite struct {
@@ -168,14 +182,14 @@ func (s *dockerClientSuite) TestFindImage() {
 		{ID: "matches", RepoTags: []string{tag, "localhost/test/image:v1.0"}},
 		{ID: "matches not", RepoTags: []string{"localhost/test/image:v0.9"}},
 	}
-	imgCh := make(chan []image.Summary, 1)
-	imgCh <- localImages
+	imgCh := make(chan client.ImageListResult, 1)
+	imgCh <- client.ImageListResult{Items: localImages}
 	close(imgCh)
 
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
 
 	img, err := s.subject.findImage(bg, tag)
 	s.Require().NoError(err)
@@ -183,15 +197,15 @@ func (s *dockerClientSuite) TestFindImage() {
 }
 
 func (s *dockerClientSuite) TestFindImage_failure() {
-	imgCh := make(chan []image.Summary, 1)
-	imgCh <- []image.Summary{}
+	imgCh := make(chan client.ImageListResult, 1)
+	imgCh <- client.ImageListResult{Items: []image.Summary{}}
 	close(imgCh)
 
 	errCh := make(chan error, 1)
 	errCh <- errors.New("test-list-error")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
 
 	_, err := s.subject.findImage(bg, "test:latest")
 	s.Require().EqualError(err, "test-list-error")
@@ -275,8 +289,8 @@ func (s *dockerClientSuite) TestConfigureDinD_unreadableCIDFile() {
 func (s *dockerClientSuite) TestConfigureDinD_invalidCID() {
 	defer s.prepareFs(true, "id")()
 
-	s.cli.On("ContainerInspect", bg, "id").Return(
-		container.InspectResponse{},
+	s.cli.On("ContainerInspect", bg, "id", client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{},
 		errors.New("Cannot connect to the Docker daemon at localhost. Is the docker daemon running?"))
 
 	s.Require().EqualError(s.subject.configureDinD("/"),
@@ -287,8 +301,8 @@ func (s *dockerClientSuite) TestConfigureDinD_invalidCID() {
 func (s *dockerClientSuite) TestConfigureDinD_missingWorkdirVolume() {
 	defer s.prepareFs(true, "id")()
 
-	s.cli.On("ContainerInspect", bg, "id").Return(
-		container.InspectResponse{}, nil)
+	s.cli.On("ContainerInspect", bg, "id", client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{}, nil)
 
 	s.Require().EqualError(s.subject.configureDinD("/texd"),
 		"missing Docker volume or bind mount for work directory")
@@ -298,11 +312,13 @@ func (s *dockerClientSuite) TestConfigureDinD_missingWorkdirVolume() {
 func (s *dockerClientSuite) TestConfigureDinD_withBindMount() {
 	defer s.prepareFs(true, "our-id")()
 
-	s.cli.On("ContainerInspect", bg, "our-id").Return(
-		container.InspectResponse{
-			Mounts: []container.MountPoint{
-				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
-				parseMount("/srv/texd/work:/texd"),
+	s.cli.On("ContainerInspect", bg, "our-id", client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{
+			Container: container.InspectResponse{
+				Mounts: []container.MountPoint{
+					parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+					parseMount("/srv/texd/work:/texd"),
+				},
 			},
 		},
 		nil)
@@ -318,13 +334,15 @@ func (s *dockerClientSuite) TestConfigureDinD_withBindMount() {
 func (s *dockerClientSuite) TestConfigureDinD_nonLocalDriver() {
 	defer s.prepareFs(true, "id")()
 
-	s.cli.On("ContainerInspect", bg, "id").Return(
-		container.InspectResponse{
-			Mounts: []container.MountPoint{{
-				Type:        mount.TypeVolume,
-				Driver:      "div/0",
-				Destination: "/texd",
-			}},
+	s.cli.On("ContainerInspect", bg, "id", client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{
+			Container: container.InspectResponse{
+				Mounts: []container.MountPoint{{
+					Type:        mount.TypeVolume,
+					Driver:      "div/0",
+					Destination: "/texd",
+				}},
+			},
 		},
 		nil)
 
@@ -336,11 +354,13 @@ func (s *dockerClientSuite) TestConfigureDinD_nonLocalDriver() {
 func (s *dockerClientSuite) TestConfigureDinD_withVolume() {
 	defer s.prepareFs(true, "our-id")()
 
-	s.cli.On("ContainerInspect", bg, "our-id").Return(
-		container.InspectResponse{
-			Mounts: []container.MountPoint{
-				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
-				parseMount("texd-work:/texd"),
+	s.cli.On("ContainerInspect", bg, "our-id", client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{
+			Container: container.InspectResponse{
+				Mounts: []container.MountPoint{
+					parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+					parseMount("texd-work:/texd"),
+				},
 			},
 		},
 		nil)
@@ -359,11 +379,13 @@ func (s *dockerClientSuite) TestConfigureDinD_withoutCIDFile() {
 	hostname, err := os.Hostname()
 	s.Require().NoError(err)
 
-	s.cli.On("ContainerInspect", bg, hostname).Return(
-		container.InspectResponse{
-			Mounts: []container.MountPoint{
-				parseMount("/var/run/docker.sock:/var/run/docker.sock"),
-				parseMount("/srv/texd/work:/texd"),
+	s.cli.On("ContainerInspect", bg, hostname, client.ContainerInspectOptions{}).Return(
+		client.ContainerInspectResult{
+			Container: container.InspectResponse{
+				Mounts: []container.MountPoint{
+					parseMount("/var/run/docker.sock:/var/run/docker.sock"),
+					parseMount("/srv/texd/work:/texd"),
+				},
 			},
 		},
 		nil)
@@ -379,8 +401,9 @@ func (s *dockerClientSuite) TestConfigureDinD_withoutCIDFile() {
 func (s *dockerClientSuite) TestPull() {
 	var buf bytes.Buffer
 
-	s.cli.On("ImagePull", bg, "localhost/test/image", image.PullOptions{}).
-		Return(io.NopCloser(&buf), nil)
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(&buf)}
+	s.cli.On("ImagePull", bg, "localhost/test/image", client.ImagePullOptions{}).
+		Return(mockResponse, nil)
 
 	p := newProgressReporter(os.Stderr)
 
@@ -388,8 +411,9 @@ func (s *dockerClientSuite) TestPull() {
 }
 
 func (s *dockerClientSuite) TestPull_failure() {
-	s.cli.On("ImagePull", bg, "test:latest", image.PullOptions{}).
-		Return(io.NopCloser(nil), errors.New("test-pull-failure"))
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(nil)}
+	s.cli.On("ImagePull", bg, "test:latest", client.ImagePullOptions{}).
+		Return(mockResponse, errors.New("test-pull-failure"))
 
 	err := s.subject.pull(bg, "test:latest", nil)
 	s.Require().EqualError(err, "test-pull-failure")
@@ -403,21 +427,22 @@ func (s *dockerClientSuite) TestSetImages() {
 	}
 
 	// ImageList is called three times
-	imgCh := make(chan []image.Summary, 3)
-	imgCh <- localImages       // find(test:v3) → ok
-	imgCh <- nil               // find(test:v4) → not found → pull
-	imgCh <- []image.Summary{{ // find(test:v4) → ok
+	imgCh := make(chan client.ImageListResult, 3)
+	imgCh <- client.ImageListResult{Items: localImages}      // find(test:v3) → ok
+	imgCh <- client.ImageListResult{}                        // find(test:v4) → not found → pull
+	imgCh <- client.ImageListResult{Items: []image.Summary{{ // find(test:v4) → ok
 		ID:       "d",
 		RepoTags: []string{"test:v4", "test:latest"},
-	}}
+	}}}
 	close(imgCh)
 
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v4", image.PullOptions{}).
-		Return(io.NopCloser(&bytes.Buffer{}), nil)
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ImagePull", bg, "test:v4", client.ImagePullOptions{}).
+		Return(mockResponse, nil)
 
 	found, err := s.subject.SetImages(bg, false, "test:v3", "test:v4")
 	s.Require().NoError(err)
@@ -425,14 +450,14 @@ func (s *dockerClientSuite) TestSetImages() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errFindImage() {
-	imgCh := make(chan []image.Summary)
+	imgCh := make(chan client.ImageListResult)
 	close(imgCh)
 
 	errCh := make(chan error, 1)
 	errCh <- errors.New("unable to resolve")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).
 		Return(imgCh, errCh)
 
 	found, err := s.subject.SetImages(bg, false, "test:v0")
@@ -441,16 +466,17 @@ func (s *dockerClientSuite) TestSetImages_errFindImage() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errPullImage() {
-	imgCh := make(chan []image.Summary, 1)
-	imgCh <- nil // find(test:v0) → not found → pull
+	imgCh := make(chan client.ImageListResult, 1)
+	imgCh <- client.ImageListResult{} // find(test:v0) → not found → pull
 	close(imgCh)
 
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
-		Return(io.NopCloser(&bytes.Buffer{}), errors.New("connection reset"))
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ImagePull", bg, "test:v0", client.ImagePullOptions{}).
+		Return(mockResponse, errors.New("connection reset"))
 
 	found, err := s.subject.SetImages(bg, false, "test:v0")
 	s.Require().EqualError(err, "connection reset")
@@ -458,7 +484,7 @@ func (s *dockerClientSuite) TestSetImages_errPullImage() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
-	imgCh := make(chan []image.Summary)
+	imgCh := make(chan client.ImageListResult)
 	close(imgCh)
 
 	errCh := make(chan error, 2)
@@ -466,9 +492,10 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
 	errCh <- errors.New("image-list-err")
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
-		Return(io.NopCloser(&bytes.Buffer{}), nil)
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ImagePull", bg, "test:v0", client.ImagePullOptions{}).
+		Return(mockResponse, nil)
 
 	found, err := s.subject.SetImages(bg, true, "test:v0")
 	s.Require().EqualError(err, "lost previously pulled image: image-list-err")
@@ -476,15 +503,16 @@ func (s *dockerClientSuite) TestSetImages_errLosingImageA() {
 }
 
 func (s *dockerClientSuite) TestSetImages_errLosingImageB() {
-	imgCh := make(chan []image.Summary)
+	imgCh := make(chan client.ImageListResult)
 	close(imgCh)
 
 	errCh := make(chan error)
 	close(errCh)
 
-	s.cli.On("ImageList", bg, image.ListOptions{}).Return(imgCh, errCh)
-	s.cli.On("ImagePull", bg, "test:v0", image.PullOptions{}).
-		Return(io.NopCloser(&bytes.Buffer{}), nil)
+	s.cli.On("ImageList", bg, client.ImageListOptions{}).Return(imgCh, errCh)
+	mockResponse := &mockImagePullResponse{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ImagePull", bg, "test:v0", client.ImagePullOptions{}).
+		Return(mockResponse, nil)
 
 	found, err := s.subject.SetImages(bg, true, "test:v0")
 	s.Require().EqualError(err, "lost previously pulled image (test:v0)")
@@ -525,11 +553,11 @@ search:
 			Target: containerWd,
 		}},
 	}
-	var ncfg *network.NetworkingConfig // nil!
-	var pltf *specs.Platform           // nil!
 
-	s.cli.On("ContainerCreate", bg, ccfg, hcfg, ncfg, pltf, "").
-		Return(container.CreateResponse{ID: runningID}, startErr)
+	s.cli.On("ContainerCreate", bg, client.ContainerCreateOptions{
+		Config:     ccfg,
+		HostConfig: hcfg,
+	}).Return(client.ContainerCreateResult{ID: runningID}, startErr)
 }
 
 func (s *dockerClientSuite) TestPrepareContainer() {
@@ -565,18 +593,19 @@ func (s *dockerClientSuite) TestRun() {
 		runningID, nil)
 
 	var logs bytes.Buffer
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(&logs)}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(&logs), nil)
+	}).Return(mockLogs, nil)
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(nil)
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
 	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error, 1)
-	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
-		Return(statusCh, errCh)
+	s.cli.On("ContainerWait", bg, runningID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).
+		Return(client.ContainerWaitResult{Result: statusCh, Error: errCh})
 
 	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().NoError(err)
@@ -598,18 +627,19 @@ func (s *dockerClientSuite) TestRun_errRetrieveLogs() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(nil)}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(nil), errors.New("failed"))
+	}).Return(mockLogs, errors.New("failed"))
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(nil)
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
 	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error)
-	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
-		Return(statusCh, errCh)
+	s.cli.On("ContainerWait", bg, runningID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).
+		Return(client.ContainerWaitResult{Result: statusCh, Error: errCh})
 
 	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().EqualError(err, "unable to retrieve logs: failed")
@@ -627,18 +657,19 @@ func (s *dockerClientSuite) TestRun_errReadLogs() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(&failReader{errors.New("copy failure")})}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(&failReader{errors.New("copy failure")}), nil)
+	}).Return(mockLogs, nil)
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(nil)
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
 	statusCh <- container.WaitResponse{StatusCode: 0}
 	errCh := make(chan error)
-	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
-		Return(statusCh, errCh)
+	s.cli.On("ContainerWait", bg, runningID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).
+		Return(client.ContainerWaitResult{Result: statusCh, Error: errCh})
 
 	out, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().EqualError(err, "unable to read logs: copy failure")
@@ -650,12 +681,13 @@ func (s *dockerClientSuite) TestRun_errContainerStart() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
+	}).Return(mockLogs, nil)
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(errors.New("dockerd busy"))
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, errors.New("dockerd busy"))
 
 	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().EqualError(err, "failed to start container: dockerd busy")
@@ -666,18 +698,19 @@ func (s *dockerClientSuite) TestRun_errWaitForContainer() {
 	s.mockContainerCreate("texd", "/job", []string{"latexmk"},
 		runningID, nil)
 
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(&bytes.Buffer{})}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(&bytes.Buffer{}), nil)
+	}).Return(mockLogs, nil)
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(nil)
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, nil)
 
 	statusCh := make(chan container.WaitResponse)
 	errCh := make(chan error, 1)
 	errCh <- errors.New("unexpected restart")
-	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
-		Return(statusCh, errCh)
+	s.cli.On("ContainerWait", bg, runningID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).
+		Return(client.ContainerWaitResult{Result: statusCh, Error: errCh})
 
 	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().EqualError(err, "failed to run container: unexpected restart")
@@ -689,18 +722,19 @@ func (s *dockerClientSuite) TestRun_errExitStatus() {
 		runningID, nil)
 
 	var logs bytes.Buffer
-	s.cli.On("ContainerLogs", bg, runningID, container.LogsOptions{
+	mockLogs := &mockContainerLogsResult{ReadCloser: io.NopCloser(&logs)}
+	s.cli.On("ContainerLogs", bg, runningID, client.ContainerLogsOptions{
 		ShowStderr: true,
-	}).Return(io.NopCloser(&logs), nil)
+	}).Return(mockLogs, nil)
 
-	s.cli.On("ContainerStart", bg, runningID, container.StartOptions{}).
-		Return(nil)
+	s.cli.On("ContainerStart", bg, runningID, client.ContainerStartOptions{}).
+		Return(client.ContainerStartResult{}, nil)
 
 	statusCh := make(chan container.WaitResponse, 1)
 	statusCh <- container.WaitResponse{StatusCode: 127}
 	errCh := make(chan error, 1)
-	s.cli.On("ContainerWait", bg, runningID, container.WaitConditionNotRunning).
-		Return(statusCh, errCh)
+	s.cli.On("ContainerWait", bg, runningID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).
+		Return(client.ContainerWaitResult{Result: statusCh, Error: errCh})
 
 	_, err := s.subject.Run(bg, "texd", "/job", []string{"latexmk"})
 	s.Require().EqualError(err, "container exited with status 127")
