@@ -9,7 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/docker/docker/api/types/mount"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/client"
 	"github.com/spf13/afero"
 )
 
@@ -51,12 +52,12 @@ func (dc *DockerClient) configureDinD(baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("cannot determine texd container ID: %w", err)
 	}
-	container, err := dc.cli.ContainerInspect(context.Background(), id)
+	result, err := dc.cli.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot determine texd container: %w", err)
 	}
 
-	for _, mp := range container.Mounts {
+	for _, mp := range result.Container.Mounts {
 		if mp.Destination != baseDir {
 			continue
 		}
