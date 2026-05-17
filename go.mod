@@ -15,7 +15,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/prometheus/client_golang v1.23.2
-	github.com/spf13/afero v1.15.0
+	github.com/spf13/afero v1.15.1-0.20260507182200-993a85a53c41
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.9.0
 	github.com/yuin/goldmark v1.8.2
@@ -62,7 +62,5 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
-
-replace github.com/spf13/afero => github.com/digineo/afero v1.14.1-0.20260410185231-4b658f379742
 
 exclude google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8
