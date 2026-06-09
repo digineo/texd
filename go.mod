@@ -20,7 +20,7 @@ require (
 	github.com/urfave/cli/v3 v3.9.0
 	github.com/yuin/goldmark v1.8.2
 	gitlab.com/greyxor/slogor v1.6.10
-	golang.org/x/text v0.37.0
+	golang.org/x/text v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
