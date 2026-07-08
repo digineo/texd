@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 // The Adapter interface describes the protocol to interact with different

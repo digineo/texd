@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"github.com/digineo/texd/service/middleware"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/image"

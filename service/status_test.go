@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
+	"github.com/digineo/xlog/slogor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,7 @@ func TestHandleStatus(t *testing.T) {
 func TestHandleStatus_withFailIO(t *testing.T) {
 	var buf bytes.Buffer
 	log, err := xlog.New(
-		xlog.AsText(),
+		slogor.Colorized(),
 		xlog.WriteTo(&buf),
 		xlog.WithSource(),
 		xlog.MockClock(time.Unix(1650000000, 0).UTC()),

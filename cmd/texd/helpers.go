@@ -7,7 +7,8 @@ import (
 	"runtime/debug"
 
 	"github.com/digineo/texd"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
+	"github.com/digineo/xlog/slogor"
 )
 
 // printVersion prints version information to the given writer.
@@ -41,7 +42,7 @@ func setupLogger(level string, development bool) (xlog.Logger, func(), error) {
 		xlog.LeveledString(level),
 	}
 	if development {
-		opts = append(opts, xlog.AsText(), xlog.Color())
+		opts = append(opts, slogor.Colorized())
 	} else {
 		opts = append(opts, xlog.AsJSON())
 	}

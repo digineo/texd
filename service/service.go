@@ -15,7 +15,7 @@ import (
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

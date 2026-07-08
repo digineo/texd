@@ -31,7 +31,7 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/digineo/texd/internal"
 	"github.com/digineo/texd/refstore"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 // Defaults copied from github.com/bradfitz/gomemcache/memcache for clarity

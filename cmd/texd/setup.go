@@ -10,7 +10,7 @@ import (
 	"github.com/digineo/texd/refstore/nop"
 	"github.com/digineo/texd/service"
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/docker/go-units"
 )
 

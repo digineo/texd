@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 const (

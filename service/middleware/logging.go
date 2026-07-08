@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 type responseLogger struct {

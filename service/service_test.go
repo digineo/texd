@@ -19,7 +19,7 @@ import (
 	"github.com/digineo/texd/exec"
 	"github.com/digineo/texd/refstore"
 	"github.com/digineo/texd/refstore/dir"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/docker/go-units"
 	"github.com/stretchr/testify/suite"
 )

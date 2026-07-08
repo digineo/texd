@@ -7,7 +7,7 @@ import (
 	"net/url"
 
 	"github.com/digineo/texd/refstore"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 type nop struct{}

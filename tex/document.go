@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/spf13/afero"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 // Mark is used to help identifying the main input file from a list

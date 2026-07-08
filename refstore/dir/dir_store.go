@@ -33,7 +33,7 @@ import (
 	"github.com/digineo/texd/internal"
 	"github.com/digineo/texd/refstore"
 	"github.com/spf13/afero"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 var defaultFs afero.Fs = afero.OsFs{} // swapped in tests

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 type MockExec struct {

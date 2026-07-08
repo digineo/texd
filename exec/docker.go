@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 type dockerRunner interface {

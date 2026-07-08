@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/api/types/jsonstream"

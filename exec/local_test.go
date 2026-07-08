@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

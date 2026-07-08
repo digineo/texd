@@ -8,7 +8,7 @@ import (
 
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/service"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 const (

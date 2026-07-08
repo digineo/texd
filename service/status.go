@@ -7,7 +7,7 @@ import (
 	"github.com/digineo/texd"
 	"github.com/digineo/texd/service/middleware"
 	"github.com/digineo/texd/tex"
-	"github.com/digineo/texd/xlog"
+	"github.com/digineo/xlog"
 )
 
 type Status struct {
