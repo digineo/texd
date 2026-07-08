@@ -20,7 +20,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.10.1
 	github.com/yuin/goldmark v1.8.2
-	golang.org/x/text v0.39.0
+	golang.org/x/text v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -46,7 +46,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.69.0 // indirect
-	github.com/prometheus/procfs v0.20.1 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	gitlab.com/greyxor/slogor v1.6.10 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
