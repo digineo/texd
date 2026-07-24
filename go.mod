@@ -14,7 +14,7 @@ require (
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.0
 	github.com/moby/term v0.5.2
-	github.com/oklog/ulid/v2 v2.1.1
+	github.com/oklog/ulid/v2 v2.1.2
 	github.com/prometheus/client_golang v1.24.0
 	github.com/spf13/afero v1.15.1-0.20260507182200-993a85a53c41
 	github.com/stretchr/testify v1.11.1
