@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c
-	github.com/digineo/xlog v1.0.0
+	github.com/digineo/xlog v1.1.0
 	github.com/digineo/xlog/slogor v1.0.0
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.2
