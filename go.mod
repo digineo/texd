@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spf13/afero v1.15.1-0.20260507182200-993a85a53c41
 	github.com/stretchr/testify v1.12.1
-	github.com/urfave/cli/v3 v3.10.1
+	github.com/urfave/cli/v3 v3.11.0
 	github.com/yuin/goldmark v1.8.5
 	golang.org/x/text v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
