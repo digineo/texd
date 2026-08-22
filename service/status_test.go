@@ -87,7 +87,7 @@ func TestHandleStatus_withFailIO(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.code)
 	assert.Equal(t, mimeTypeJSON, rec.h.Get("Content-Type"))
 	assert.Equal(t, strings.Join([]string{
-		"[05:20:00.000] ERROR status.go:46",
+		"[05:20:00.000] ERROR service/status.go:46",
 		"failed to write response",
 		`error="io: read/write on closed pipe"`,
 	}, " ")+"\n", buf.String())

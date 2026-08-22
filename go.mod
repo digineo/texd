@@ -1,13 +1,13 @@
 module github.com/digineo/texd
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c
 	github.com/digineo/xlog v1.1.0
-	github.com/digineo/xlog/slogor v1.0.0
+	github.com/digineo/xlog/slogor v1.1.0
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
@@ -37,7 +37,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -46,7 +46,7 @@ require (
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	gitlab.com/greyxor/slogor v1.6.10 // indirect
+	gitlab.com/greyxor/slogor v1.7.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect

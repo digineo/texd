@@ -39,7 +39,7 @@ func TestLogging(t *testing.T) {
 
 	assert.Equal(t, strings.Join([]string{
 		"[05:20:00.000] INFO ",
-		"logging.go:68",
+		"middleware/logging.go:68",
 		"",
 		"method=GET",
 		"status=200",
